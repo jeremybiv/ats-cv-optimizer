@@ -24,6 +24,13 @@ export async function initDB() {
       name VARCHAR(255),
       created_at TIMESTAMP DEFAULT NOW()
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS contact_messages (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`;
     return true;
   } catch (e) {
     console.error('[DB] Init error:', e.message);
@@ -70,5 +77,19 @@ export async function getSharedCV(id) {
     return rows[0] || null;
   } catch {
     return null;
+  }
+}
+
+export async function createContactMessage({ name, email, message }) {
+  try {
+    const { rows } = await sql`
+      INSERT INTO contact_messages (name, email, message)
+      VALUES (${name}, ${email}, ${message})
+      RETURNING id, created_at
+    `;
+    return rows[0];
+  } catch (e) {
+    console.error('[DB] createContactMessage error:', e.message);
+    throw e;
   }
 }

@@ -1,4 +1,5 @@
-import { Container, Box, Typography, Button, Card, CardContent, Grid, Link as MuiLink } from '@mui/material';
+import { useState } from 'react';
+import { Container, Box, Typography, Button, Card, CardContent, Grid, TextField, CircularProgress, Alert } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Link from 'next/link';
 
@@ -43,6 +44,46 @@ const pricingPlans = [
 ];
 
 export default function LandingPage() {
+  const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = (field) => (e) => {
+    setForm((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSent(false);
+
+    if (!form.name.trim() || !form.email.trim() || !form.message.trim()) {
+      setError('Tous les champs sont obligatoires.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/contact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSent(true);
+        setForm({ name: '', email: '', message: '' });
+      } else {
+        setError(data.errors ? data.errors.join(' ') : 'Une erreur est survenue.');
+      }
+    } catch {
+      setError('Erreur réseau. Veuillez réessayer.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
       {/* Header */}
@@ -157,14 +198,114 @@ export default function LandingPage() {
       </Box>
 
       {/* Contact */}
-      <Box sx={{ py: { xs: 6, md: 8 }, textAlign: 'center' }}>
+      <Box sx={{ py: { xs: 6, md: 8 } }}>
         <Container maxWidth="sm">
-          <Typography variant="h5" sx={{ fontWeight: 500, color: '#202124', mb: 1 }}>
+          <Typography variant="h5" sx={{ fontWeight: 500, color: '#202124', textAlign: 'center', mb: 4 }}>
             Une question ? Contacte-nous
           </Typography>
-          <MuiLink href="mailto:Jeremy.bivaud@gmail.com" underline="hover" sx={{ color: '#1a73e8', fontSize: '1.1rem', fontWeight: 500 }}>
-            Jeremy.bivaud@gmail.com
-          </MuiLink>
+
+          {sent && (
+            <Alert severity="success" sx={{ mb: 3, borderRadius: 2 }}>
+              Message envoyé !
+            </Alert>
+          )}
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3, borderRadius: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          <Box
+            component="form"
+            onSubmit={handleSubmit}
+            sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}
+          >
+            <TextField
+              label="Nom"
+              variant="outlined"
+              fullWidth
+              value={form.name}
+              onChange={handleChange('name')}
+              required
+              disabled={submitting}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  bgcolor: '#fff',
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#1a73e8',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#1a73e8',
+                },
+              }}
+            />
+            <TextField
+              label="Email"
+              type="email"
+              variant="outlined"
+              fullWidth
+              value={form.email}
+              onChange={handleChange('email')}
+              required
+              disabled={submitting}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  bgcolor: '#fff',
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#1a73e8',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#1a73e8',
+                },
+              }}
+            />
+            <TextField
+              label="Message"
+              variant="outlined"
+              fullWidth
+              multiline
+              rows={4}
+              value={form.message}
+              onChange={handleChange('message')}
+              required
+              disabled={submitting}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  borderRadius: 2,
+                  bgcolor: '#fff',
+                  '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+                    borderColor: '#1a73e8',
+                  },
+                },
+                '& .MuiInputLabel-root.Mui-focused': {
+                  color: '#1a73e8',
+                },
+              }}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              fullWidth
+              disabled={submitting}
+              sx={{
+                borderRadius: '28px',
+                textTransform: 'none',
+                py: 1.5,
+                bgcolor: '#1a73e8',
+                fontSize: '1rem',
+                fontWeight: 500,
+                '&:hover': { bgcolor: '#1557b0' },
+                '&.Mui-disabled': { bgcolor: '#93c4f5' },
+              }}
+            >
+              {submitting ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : 'Envoyer'}
+            </Button>
+          </Box>
         </Container>
       </Box>
 
