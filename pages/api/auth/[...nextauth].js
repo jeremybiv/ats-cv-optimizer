@@ -1,18 +1,7 @@
 import NextAuth from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
-import fs from 'fs';
-import path from 'path';
-
-const USERS_FILE = path.join(process.cwd(), 'data', 'users.json');
-
-function readUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_FILE, 'utf-8'));
-  } catch {
-    return [];
-  }
-}
+import { findUserByEmail } from '../../../src/lib/db';
 
 export default NextAuth({
   providers: [
@@ -23,8 +12,7 @@ export default NextAuth({
         password: { label: 'Mot de passe', type: 'password' },
       },
       async authorize(credentials) {
-        const users = readUsers();
-        const user = users.find(u => u.email === credentials?.email);
+        const user = await findUserByEmail(credentials?.email);
         if (!user) return null;
         const valid = await bcrypt.compare(credentials?.password || '', user.password);
         if (!valid) return null;
