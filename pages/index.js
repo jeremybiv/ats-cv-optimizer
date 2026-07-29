@@ -17,6 +17,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import LinkedInIcon from '@mui/icons-material/LinkedIn';
+import EditIcon from '@mui/icons-material/Edit';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -40,6 +42,14 @@ export default function Home() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
+
+  // LinkedIn import state
+  const [linkedinUrl, setLinkedinUrl] = useState('');
+  const [linkedinData, setLinkedinData] = useState(null);
+  const [linkedinLoading, setLinkedinLoading] = useState(false);
+  const [linkedinError, setLinkedinError] = useState(null);
+  const [linkedinManualText, setLinkedinManualText] = useState('');
+  const [showManualInput, setShowManualInput] = useState(false);
 
   const calculateLiveScore = useCallback((text) => {
     if (!text || text.length < 20) {
@@ -83,12 +93,81 @@ export default function Home() {
     reader.readAsDataURL(file);
   });
 
+  // LinkedIn URL handler
+  const handleLinkedinUrlChange = useCallback(async (url) => {
+    setLinkedinUrl(url);
+    setLinkedinError(null);
+    setShowManualInput(false);
+
+    // Check if it's a LinkedIn URL
+    if (!url || !url.includes('linkedin.com/in/')) {
+      if (linkedinData) {
+        setLinkedinData(null);
+        setLinkedinManualText('');
+      }
+      return;
+    }
+
+    setLinkedinLoading(true);
+    try {
+      const res = await fetch('/api/linkedin-fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json();
+      
+      if (!res.ok) {
+        setLinkedinError(data.error || 'Erreur lors de la récupération du profil');
+        setLinkedinLoading(false);
+        return;
+      }
+
+      if (data.source === 'fallback') {
+        // LinkedIn blocked — show manual textarea
+        setShowManualInput(true);
+        setLinkedinData(null);
+        setLinkedinError("Le profil LinkedIn n'a pas pu être récupéré automatiquement (LinkedIn bloque le scraping). Collez manuellement le contenu de votre profil ci-dessous.");
+      } else {
+        // Successfully scraped
+        setLinkedinData(data);
+        setShowManualInput(false);
+        // Clear any previously entered manual text
+        setLinkedinManualText('');
+      }
+    } catch (err) {
+      setLinkedinError('Erreur de connexion: ' + err.message);
+      setShowManualInput(true);
+    } finally {
+      setLinkedinLoading(false);
+    }
+  }, [linkedinData]);
+
+  const handleRemoveLinkedin = () => {
+    setLinkedinUrl('');
+    setLinkedinData(null);
+    setLinkedinManualText('');
+    setShowManualInput(false);
+    setLinkedinError(null);
+  };
+
   const handleOptimize = async () => {
-    if (!cvFile && !jobUrl && !jobText) return;
+    const hasCv = !!cvFile;
+    const hasLinkedin = !!linkedinData || (showManualInput && linkedinManualText.trim().length > 20);
+    if (!hasCv && !hasLinkedin && !jobUrl && !jobText) return;
+    
     setLoading(true); setError(null); setResult(null); setStep(0);
     try {
       const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined, strictMode };
-      if (cvFile) body.cvBase64 = await readFileAsBase64(cvFile);
+      
+      if (cvFile) {
+        body.cvBase64 = await readFileAsBase64(cvFile);
+      } else if (linkedinData) {
+        body.linkedinData = linkedinData;
+      } else if (showManualInput && linkedinManualText.trim().length > 20) {
+        body.cvText = linkedinManualText;
+      }
+      
       setStep(1);
       const res = await fetch('/api/optimize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -115,6 +194,8 @@ export default function Home() {
   const handleReset = () => {
     setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
     setError(null); setStep(0);
+    setLinkedinUrl(''); setLinkedinData(null); setLinkedinManualText('');
+    setShowManualInput(false); setLinkedinError(null);
   };
 
   const handleShare = async () => {
@@ -146,7 +227,6 @@ export default function Home() {
   const handleDownloadPDF = async () => {
     if (!result?.html) return;
     try {
-      // Dynamically load html2pdf.js if not already loaded
       if (typeof window !== 'undefined' && !window.html2pdf) {
         await new Promise((resolve, reject) => {
           const script = document.createElement('script');
@@ -176,10 +256,46 @@ export default function Home() {
         window.print();
       }
     } catch (err) {
-      console.error('PDF export error:', err);
-      window.print();
+      setError(err.message || 'Erreur lors de la génération PDF');
     }
   };
+
+  // Build a readable profile summary
+  const linkedinProfilePreview = linkedinData ? (
+    <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#e8f0fe', borderRadius: 2, border: '1px solid #b3d4fc' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+        <LinkedInIcon sx={{ color: '#0a66c2', fontSize: 20 }} />
+        <Typography variant="subtitle2" sx={{ color: '#0a66c2', fontWeight: 600 }}>
+          Profil importé depuis LinkedIn
+        </Typography>
+      </Box>
+      <Typography variant="body2" sx={{ color: '#202124', fontWeight: 500 }}>
+        {linkedinData.name}
+      </Typography>
+      {linkedinData.title && (
+        <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
+          {linkedinData.title}
+        </Typography>
+      )}
+      {linkedinData.skills && linkedinData.skills.length > 0 && (
+        <Box sx={{ mt: 0.5, display: 'flex', flexWrap: 'wrap', gap: 0.3 }}>
+          {linkedinData.skills.slice(0, 5).map((s, i) => (
+            <Chip key={i} label={s} size="small" sx={{ bgcolor: '#fff', color: '#0a66c2', fontSize: '0.65rem', height: 20 }} />
+          ))}
+          {linkedinData.skills.length > 5 && (
+            <Typography variant="caption" sx={{ color: '#5f6368', fontSize: '0.65rem', alignSelf: 'center' }}>
+              +{linkedinData.skills.length - 5}
+            </Typography>
+          )}
+        </Box>
+      )}
+      <Button size="small" onClick={handleRemoveLinkedin} sx={{ mt: 0.5, fontSize: '0.7rem', color: '#5f6368', textTransform: 'none', minWidth: 0, p: 0 }}>
+        Supprimer
+      </Button>
+    </Box>
+  ) : null;
+
+  const isReady = cvFile || linkedinData || (showManualInput && linkedinManualText.trim().length > 20) || jobUrl || jobText;
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
@@ -215,43 +331,119 @@ export default function Home() {
             Un CV qui passe les robots 🤖 <span style={{ color: '#1a73e8' }}>et séduit les recruteurs</span>
           </Typography>
           <Typography variant="body1" sx={{ color: '#5f6368', maxWidth: 600, mx: 'auto' }}>
-            Importe ton CV, colle une offre d'emploi — on génère un CV HTML optimisé ATS en quelques secondes.
+            Importe ton CV ou ton profil LinkedIn, colle une offre d'emploi — on génère un CV HTML optimisé ATS en quelques secondes.
           </Typography>
         </Box>
 
         {/* Upload card */}
         <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+            {/* Left column: CV upload + LinkedIn import */}
             <Box sx={{ flex: 1, p: { xs: 2, md: 3 }, borderRight: { md: '1px solid #e0e0e0' } }}>
               <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <ArticleIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Ton CV actuel
+                <ArticleIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Ton CV ou profil
               </Typography>
-              <Box onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
-                onClick={() => fileRef.current?.click()}
-                sx={{ border: '2px dashed', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer',
-                  borderColor: dragOver ? '#1a73e8' : cvFile ? '#34a853' : '#dadce0',
-                  bgcolor: dragOver ? '#e8f0fe' : cvFile ? '#e6f4ea' : '#fff',
-                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
-                }}>
-                <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileSelect} hidden />
-                {cvFile ? (
-                  <Box>
-                    <CheckCircleIcon sx={{ fontSize: 36, color: '#34a853', mb: 1 }} />
-                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#202124' }}>{cvFile.name}</Typography>
-                    <Typography variant="caption" sx={{ color: '#5f6368' }}>{(cvFile.size / 1024).toFixed(0)} Ko · PDF</Typography>
-                  </Box>
-                ) : (
-                  <Box>
-                    <CloudUploadIcon sx={{ fontSize: 36, color: '#5f6368', mb: 1 }} />
-                    <Typography variant="body2" sx={{ color: '#5f6368' }}>
-                      Dépose ton CV ici ou <strong style={{ color: '#1a73e8' }}>parcours</strong>
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: '#9aa0a6' }}>PDF uniquement</Typography>
-                  </Box>
-                )}
+
+              {/* CV Upload — hidden when LinkedIn data is active */}
+              {!linkedinData && !linkedinUrl && (
+                <Box onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                  onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
+                  onClick={() => fileRef.current?.click()}
+                  sx={{ border: '2px dashed', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer',
+                    borderColor: dragOver ? '#1a73e8' : cvFile ? '#34a853' : '#dadce0',
+                    bgcolor: dragOver ? '#e8f0fe' : cvFile ? '#e6f4ea' : '#fff',
+                    transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                  }}>
+                  <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileSelect} hidden />
+                  {cvFile ? (
+                    <Box>
+                      <CheckCircleIcon sx={{ fontSize: 36, color: '#34a853', mb: 1 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 500, color: '#202124' }}>{cvFile.name}</Typography>
+                      <Typography variant="caption" sx={{ color: '#5f6368' }}>{(cvFile.size / 1024).toFixed(0)} Ko · PDF</Typography>
+                    </Box>
+                  ) : (
+                    <Box>
+                      <CloudUploadIcon sx={{ fontSize: 36, color: '#5f6368', mb: 1 }} />
+                      <Typography variant="body2" sx={{ color: '#5f6368' }}>
+                        Dépose ton CV ici ou <strong style={{ color: '#1a73e8' }}>parcours</strong>
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: '#9aa0a6' }}>PDF uniquement</Typography>
+                    </Box>
+                  )}
+                </Box>
+              )}
+
+              {/* LinkedIn data preview — replaces CV upload */}
+              {linkedinProfilePreview}
+
+              {/* Show CV upload again if LinkedIn URL is cleared */}
+              {!linkedinData && linkedinUrl && !cvFile && (
+                <Box sx={{ mb: 2 }}>
+                  <Button 
+                    size="small" 
+                    variant="outlined" 
+                    startIcon={<CloudUploadIcon />}
+                    onClick={() => fileRef.current?.click()}
+                    sx={{ borderRadius: '16px', textTransform: 'none', fontSize: '0.75rem', borderColor: '#dadce0', color: '#5f6368' }}
+                  >
+                    Ou téléverser un CV PDF
+                  </Button>
+                  <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileSelect} hidden />
+                </Box>
+              )}
+
+              {/* LinkedIn URL field */}
+              <Box sx={{ mt: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                  <LinkedInIcon sx={{ color: '#0a66c2', fontSize: 20 }} />
+                  <Typography variant="caption" sx={{ color: '#5f6368', fontWeight: 500 }}>
+                    Ou importe ton profil LinkedIn
+                  </Typography>
+                </Box>
+                <TextField
+                  fullWidth
+                  size="small"
+                  placeholder="https://www.linkedin.com/in/tonprofil/"
+                  value={linkedinUrl}
+                  onChange={(e) => handleLinkedinUrlChange(e.target.value)}
+                  disabled={linkedinLoading}
+                  sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  InputProps={{
+                    startAdornment: linkedinLoading ? (
+                      <CircularProgress size={16} sx={{ mr: 1, color: '#0a66c2' }} />
+                    ) : (
+                      <LinkedInIcon sx={{ color: '#0a66c2', mr: 1, fontSize: 18 }} />
+                    ),
+                  }}
+                />
               </Box>
+
+              {/* LinkedIn error / manual textarea fallback */}
+              {linkedinError && (
+                <Alert severity={showManualInput ? 'info' : 'error'} sx={{ mt: 1.5, borderRadius: 2, fontSize: '0.8rem' }}>
+                  {linkedinError}
+                </Alert>
+              )}
+
+              {showManualInput && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Typography variant="caption" sx={{ color: '#5f6368', mb: 0.5, display: 'block', fontWeight: 500 }}>
+                    Colle le contenu de ton profil LinkedIn (nom, expérience, compétences...)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={6}
+                    placeholder={`Exemple:\nJean Dupont\nDéveloppeur Full Stack\n\nExpérience:\n- TechCorp (2020-2024) - Développeur React/Node.js\n- StartupXYZ (2018-2020) - Développeur Frontend\n\nCompétences: JavaScript, React, Node.js, Python, AWS`}
+                    value={linkedinManualText}
+                    onChange={(e) => setLinkedinManualText(e.target.value)}
+                    sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                  />
+                </Box>
+              )}
             </Box>
+
+            {/* Right column: Job offer */}
             <Box sx={{ flex: 1.5, p: { xs: 2, md: 3 } }}>
               <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SearchIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> L'offre d'emploi
@@ -356,7 +548,7 @@ export default function Home() {
               Réinitialiser
             </Button>
             <Button variant="contained" size="large" onClick={handleOptimize}
-              disabled={loading || (!cvFile && !jobUrl && !jobText)}
+              disabled={loading || (!cvFile && !linkedinData && !(showManualInput && linkedinManualText.trim().length > 20) && !jobUrl && !jobText)}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <AutoAwesomeIcon />}
               sx={{ borderRadius: '28px', textTransform: 'none', px: 4, bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' } }}>
               {loading ? 'Optimisation en cours...' : '🚀 Optimiser mon CV'}
