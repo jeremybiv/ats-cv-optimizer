@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/router';
+import Link from 'next/link';
 import { Container, Box, Typography, TextField, Button, Paper, Alert } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
@@ -26,7 +27,7 @@ export default function Login() {
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 36, mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 500 }}>ATS CV Optimizer</Typography>
-            <Typography variant="body2" sx={{ color: '#5f6368' }}>Connectez-vous pour accéder à l'application</Typography>
+            <Typography variant="body2" sx={{ color: '#5f6368' }}>Connectez-vous à votre compte</Typography>
           </Box>
           <form onSubmit={handleSubmit}>
             <TextField fullWidth size="small" label="Email" type="email" value={email}
@@ -39,9 +40,14 @@ export default function Login() {
               {loading ? 'Connexion...' : 'Se connecter'}
             </Button>
           </form>
-          <Typography variant="caption" sx={{ color: '#9aa0a6', display: 'block', textAlign: 'center', mt: 2 }}>
-            Démo: demo@ats-cv.app / ats2024
-          </Typography>
+          <Box sx={{ textAlign: 'center', mt: 2 }}>
+            <Typography variant="body2" sx={{ color: '#5f6368' }}>
+              Pas encore de compte ?{' '}
+              <Link href="/signup" style={{ color: '#1a73e8', fontWeight: 500, textDecoration: 'none' }}>
+                Créer un compte
+              </Link>
+            </Typography>
+          </Box>
         </Paper>
       </Container>
     </Box>

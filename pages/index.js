@@ -1,227 +1,281 @@
 import { useState, useRef, useCallback } from 'react';
-import Head from 'next/head';
-import { extractKeywords, scoreCV, generateOptimizedCV } from '../src/lib/atsEngine';
-import { parseCVText } from '../src/lib/parsers';
-import { fetchJobFromURL } from '../src/lib/jobFetcher';
+import { useSession, signOut } from 'next-auth/react';
+import { 
+  Container, Box, Typography, Button, TextField, Paper, 
+  LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
+  Card, CircularProgress, Divider, Avatar, Menu, MenuItem
+} from '@mui/material';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import SearchIcon from '@mui/icons-material/Search';
+import ArticleIcon from '@mui/icons-material/Article';
+import DownloadIcon from '@mui/icons-material/Download';
+import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 export default function Home() {
+  const { data: session } = useSession();
+  const [anchorEl, setAnchorEl] = useState(null);
   const [cvFile, setCvFile] = useState(null);
-  const [cvText, setCvText] = useState('');
+  const [dragOver, setDragOver] = useState(false);
   const [jobUrl, setJobUrl] = useState('');
   const [jobText, setJobText] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
-  const [error, setError] = useState('');
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef(null);
+  const [error, setError] = useState(null);
+  const [step, setStep] = useState(0);
+  const [copied, setCopied] = useState(false);
+  const fileRef = useRef(null);
+  const resultRef = useRef(null);
 
   const handleDrop = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(false);
+    e.preventDefault(); setDragOver(false);
     const file = e.dataTransfer.files[0];
-    if (file && file.type === 'application/pdf') {
-      setCvFile(file);
-      setError('');
-    } else {
-      setError('Veuillez deposer un fichier PDF');
-    }
-  }, []);
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault();
-    setDragOver(true);
-  }, []);
-
-  const handleDragLeave = useCallback(() => {
-    setDragOver(false);
+    if (file && (file.type === 'application/pdf' || file.name.endsWith('.pdf'))) setCvFile(file);
   }, []);
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setCvFile(file);
-      setError('');
-    }
+    if (file) setCvFile(file);
   };
 
-  const readFileAsText = async (file) => {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdfjsLib = await import('pdfjs-dist');
-    pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map(item => item.str).join(' ');
-      fullText += pageText + '\n';
-    }
-    return fullText;
-  };
+  const readFileAsBase64 = (file) => new Promise((res) => {
+    const reader = new FileReader();
+    reader.onload = () => res(reader.result.split(',')[1]);
+    reader.readAsDataURL(file);
+  });
 
   const handleOptimize = async () => {
-    setError('');
-    setLoading(true);
-    setResult(null);
+    if (!cvFile && !jobUrl && !jobText) return;
+    setLoading(true); setError(null); setResult(null); setStep(0);
     try {
-      let jdText = jobText;
-      if (jobUrl.trim()) {
-        try {
-          jdText = await fetchJobFromURL(jobUrl.trim());
-        } catch (err) {
-          setError('Erreur de recuperation: ' + err.message);
-          setLoading(false);
-          return;
-        }
-      }
-      if (!jdText.trim()) {
-        setError('Veuillez entrer une URL ou coller le texte');
-        setLoading(false);
-        return;
-      }
-      const keywords = extractKeywords(jdText);
-      let parsedCV = { name: '', email: '', phone: '', summary: '', experience: [], education: [], skills: [] };
-      let cvRawText = '';
-      if (cvFile) {
-        cvRawText = await readFileAsText(cvFile);
-        parsedCV = parseCVText(cvRawText);
-      }
-      const cvScore = scoreCV(cvRawText || cvText, keywords);
-      const optimizedHTML = generateOptimizedCV(parsedCV, keywords);
-      const optimizedScore = scoreCV(optimizedHTML, keywords);
-      setResult({
-        optimizedHTML,
-        originalScore: cvScore,
-        optimizedScore: optimizedScore,
-        keywords: keywords,
-        matchedCount: cvScore.breakdown.matchedKeywords?.length || 0,
-        totalKeywords: keywords.all.length,
+      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined };
+      if (cvFile) body.cvBase64 = await readFileAsBase64(cvFile);
+      setStep(1);
+      const res = await fetch('/api/optimize', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+      setStep(2);
+      setResult(data);
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
-      setError('Erreur: ' + err.message);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const getScoreClass = (score) => {
-    if (score >= 80) return 'score-excellent';
-    if (score >= 60) return 'score-good';
-    if (score >= 40) return 'score-average';
-    return 'score-poor';
+  const handleCopy = () => {
+    navigator.clipboard.writeText(result?.html || '');
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const downloadCV = () => {
-    if (!result) return;
-    const blob = new Blob([result.optimizedHTML], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'cv_optimise_ats.html';
-    a.click();
-    URL.revokeObjectURL(url);
+  const handleReset = () => {
+    setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
+    setError(null); setStep(0);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Head>
-        <title>ATS CV Optimizer</title>
-        <meta name="description" content="Optimisez votre CV pour les ATS" />
-      </Head>
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">ATS</div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900">ATS CV Optimizer</h1>
-            <p className="text-sm text-gray-500">Optimisez votre CV pour les ATS</p>
-          </div>
-        </div>
-      </header>
-      <main className="max-w-5xl mx-auto px-4 py-8 space-y-8">
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">1. Telechargez votre CV (PDF)</h2>
-          <div
-            className={`drop-zone ${dragOver ? 'drag-over' : ''} ${cvFile ? 'has-file' : ''}`}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <input ref={fileInputRef} type="file" accept="application/pdf" onChange={handleFileSelect} className="hidden" />
-            {cvFile ? (
-              <div>
-                <div className="text-4xl mb-2">{'\u2705'}</div>
-                <p className="font-medium text-green-700">{cvFile.name}</p>
-                <p className="text-sm text-gray-500">{(cvFile.size / 1024).toFixed(1)} Ko</p>
-                <p className="text-sm text-blue-600 mt-2">Cliquez pour changer</p>
-              </div>
-            ) : (
-              <div>
-                <div className="text-4xl mb-2">{'\u{1F4C4}'}</div>
-                <p className="font-medium text-gray-700">Glissez-deposez votre CV ici</p>
-                <p className="text-sm text-gray-500 mt-1">ou cliquez pour parcourir (PDF)</p>
-              </div>
-            )}
-          </div>
-        </section>
-        <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-4">2. Description du poste</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">URL de l'offre d'emploi</label>
-              <input type="url" value={jobUrl} onChange={(e) => setJobUrl(e.target.value)} placeholder="https://example.com/job-posting" className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200"></div>
-              <span className="text-sm text-gray-400">OU</span>
-              <div className="flex-1 border-t border-gray-200"></div>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Collez la description du poste</label>
-              <textarea value={jobText} onChange={(e) => setJobText(e.target.value)} placeholder="Copiez-collez ici la description..." className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm job-textarea" />
-            </div>
-          </div>
-        </section>
-        <div className="flex justify-center">
-          <button onClick={handleOptimize} disabled={loading || (!cvFile && !cvText) || (!jobUrl && !jobText)} className="btn-primary px-8 py-3 text-base flex items-center gap-2">
-            {loading ? (
-              <><span className="spinner"></span>Optimisation en cours...</>
-            ) : (
-              <><span className="text-lg">{'\u26A1'}</span>Optimiser mon CV</>
-            )}
-          </button>
-        </div>
-        {error && (<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>)}
-        {result && (
-          <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-6">3. Resultats</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-2">Score ATS Original</p>
-                <div className={`score-ring ${getScoreClass(result.originalScore.overall)}`}>{result.originalScore.overall}</div>
-              </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <p className="text-sm text-gray-500 mb-2">Score ATS Optimise</p>
-                <div className={`score-ring ${getScoreClass(result.optimizedScore.overall)}`}>{result.optimizedScore.overall}</div>
-              </div>
-            </div>
-            <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Mots-cles: {result.matchedCount}/{result.totalKeywords}</h3>
-              <div className="flex flex-wrap gap-1.5">
-                {result.keywords.technical?.slice(0, 10).map((kw, i) => <span key={i} className="px-2.5 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium">{kw}</span>)}
-              </div>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-gray-700">Apercu du CV optimise</h3>
-                <button onClick={downloadCV} className="px-3 py-1.5 text-sm border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50">Telecharger (HTML)</button>
-              </div>
-              <iframe srcDoc={result.optimizedHTML} className="cv-preview" title="CV Optimise" />
-            </div>
-          </section>
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      {/* Header */}
+      <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
+        <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
+          <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem' }}>
+            ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
+          </Typography>
+          <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="caption" sx={{ color: '#5f6368', display: { xs: 'none', sm: 'block' } }}>
+              {session?.user?.email}
+            </Typography>
+            <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
+              <Avatar sx={{ width: 28, height: 28, bgcolor: '#1a73e8', fontSize: '0.8rem' }}>
+                {session?.user?.email?.[0]?.toUpperCase() || 'U'}
+              </Avatar>
+            </IconButton>
+            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+              <MenuItem onClick={() => { setAnchorEl(null); signOut(); }}>
+                <LogoutIcon sx={{ mr: 1, fontSize: 18 }} /> Se déconnecter
+              </MenuItem>
+            </Menu>
+          </Box>
+        </Container>
+      </Box>
+
+      <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
+        {/* Hero */}
+        <Box sx={{ textAlign: 'center', mb: 5 }}>
+          <Typography variant="h4" sx={{ fontWeight: 500, color: '#202124', fontSize: { xs: '1.5rem', md: '2rem' }, mb: 1 }}>
+            Un CV qui passe les robots 🤖 <span style={{ color: '#1a73e8' }}>et séduit les recruteurs</span>
+          </Typography>
+          <Typography variant="body1" sx={{ color: '#5f6368', maxWidth: 600, mx: 'auto' }}>
+            Importe ton CV, colle une offre d'emploi — on génère un CV HTML optimisé ATS en quelques secondes.
+          </Typography>
+        </Box>
+
+        {/* Upload card */}
+        <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
+            <Box sx={{ flex: 1, p: { xs: 2, md: 3 }, borderRight: { md: '1px solid #e0e0e0' } }}>
+              <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <ArticleIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Ton CV actuel
+              </Typography>
+              <Box onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
+                onClick={() => fileRef.current?.click()}
+                sx={{ border: '2px dashed', borderRadius: 2, p: 3, textAlign: 'center', cursor: 'pointer',
+                  borderColor: dragOver ? '#1a73e8' : cvFile ? '#34a853' : '#dadce0',
+                  bgcolor: dragOver ? '#e8f0fe' : cvFile ? '#e6f4ea' : '#fff',
+                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                }}>
+                <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileSelect} hidden />
+                {cvFile ? (
+                  <Box>
+                    <CheckCircleIcon sx={{ fontSize: 36, color: '#34a853', mb: 1 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 500, color: '#202124' }}>{cvFile.name}</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f6368' }}>{(cvFile.size / 1024).toFixed(0)} Ko · PDF</Typography>
+                  </Box>
+                ) : (
+                  <Box>
+                    <CloudUploadIcon sx={{ fontSize: 36, color: '#5f6368', mb: 1 }} />
+                    <Typography variant="body2" sx={{ color: '#5f6368' }}>
+                      Dépose ton CV ici ou <strong style={{ color: '#1a73e8' }}>parcours</strong>
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: '#9aa0a6' }}>PDF uniquement</Typography>
+                  </Box>
+                )}
+              </Box>
+            </Box>
+            <Box sx={{ flex: 1.5, p: { xs: 2, md: 3 } }}>
+              <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <SearchIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> L'offre d'emploi
+              </Typography>
+              <TextField fullWidth size="small" placeholder="Colle le lien de l'offre (LinkedIn, WTTJ...)"
+                value={jobUrl} onChange={(e) => setJobUrl(e.target.value)}
+                sx={{ mb: 1.5, '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                InputProps={{ startAdornment: <SearchIcon sx={{ color: '#9aa0a6', mr: 1, fontSize: 18 }} /> }} />
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+                <Divider sx={{ flex: 1 }} /><Typography variant="caption" sx={{ color: '#9aa0a6' }}>ou</Typography><Divider sx={{ flex: 1 }} />
+              </Box>
+              <TextField fullWidth multiline rows={4}
+                placeholder="Colle directement le texte de l'offre ici..."
+                value={jobText} onChange={(e) => setJobText(e.target.value)}
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+            </Box>
+          </Box>
+          <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: '#f8f9fa', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Button variant="text" size="small" onClick={handleReset} startIcon={<RestartAltIcon />} sx={{ color: '#5f6368', textTransform: 'none' }}>
+              Réinitialiser
+            </Button>
+            <Button variant="contained" size="large" onClick={handleOptimize}
+              disabled={loading || (!cvFile && !jobUrl && !jobText)}
+              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <AutoAwesomeIcon />}
+              sx={{ borderRadius: '28px', textTransform: 'none', px: 4, bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' } }}>
+              {loading ? 'Optimisation en cours...' : '🚀 Optimiser mon CV'}
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Progress */}
+        {loading && (
+          <Box sx={{ mb: 3 }}>
+            <LinearProgress variant="determinate" value={step * 50} sx={{ borderRadius: 2, height: 4, '& .MuiLinearProgress-bar': { bgcolor: '#1a73e8' } }} />
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+              <Chip label="📄 Analyse du CV" size="small" color={step >= 1 ? 'primary' : 'default'} variant={step >= 1 ? 'filled' : 'outlined'} />
+              <Chip label="🔍 Scan de l'offre" size="small" color={step >= 2 ? 'primary' : 'default'} variant={step >= 2 ? 'filled' : 'outlined'} />
+              <Chip label="✨ Génération HTML" size="small" color={step >= 2 ? 'primary' : 'default'} variant={step >= 2 ? 'filled' : 'outlined'} />
+            </Box>
+          </Box>
         )}
-      </main>
-      <footer className="border-t border-gray-200 bg-white mt-12 py-6 text-center text-sm text-gray-400">ATS CV Optimizer</footer>
-    </div>
+
+        {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
+
+        {/* Results */}
+        {result && (
+          <Box ref={resultRef}>
+            <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 3, mb: 3 }}>
+              <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <AutoAwesomeIcon sx={{ color: '#1a73e8' }} /> CV optimisé ATS
+              </Typography>
+              <Grid container spacing={2} sx={{ mb: 2 }}>
+                <Grid item xs={6} md={3}>
+                  <Card elevation={0} sx={{ bgcolor: '#e8f0fe', borderRadius: 2, textAlign: 'center', py: 2 }}>
+                    <Typography variant="h4" sx={{ color: '#1a73e8', fontWeight: 600 }}>{result.matchScore || 0}%</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Correspondance</Typography>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card elevation={0} sx={{ bgcolor: '#e6f4ea', borderRadius: 2, textAlign: 'center', py: 2 }}>
+                    <Typography variant="h4" sx={{ color: '#34a853', fontWeight: 600 }}>{result.keywordCount || 0}</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés matchés</Typography>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card elevation={0} sx={{ bgcolor: '#fef7e0', borderRadius: 2, textAlign: 'center', py: 2 }}>
+                    <Typography variant="h4" sx={{ color: '#f9ab00', fontWeight: 600 }}>{result.structureScore || 0}/100</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Structure ATS</Typography>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} md={3}>
+                  <Card elevation={0} sx={{ bgcolor: '#fce8e6', borderRadius: 2, textAlign: 'center', py: 2 }}>
+                    <Typography variant="h4" sx={{ color: '#ea4335', fontWeight: 600 }}>{result.missingCount || 0}</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés manquants</Typography>
+                  </Card>
+                </Grid>
+              </Grid>
+              {result.keywords && (
+                <Box sx={{ mb: 2 }}>
+                  <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1, fontSize: '0.85rem' }}>Mots-clés</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                    {result.keywords.map((kw, i) => (
+                      <Chip key={i} label={kw} size="small"
+                        sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontSize: '0.75rem' }} />
+                    ))}
+                  </Box>
+                </Box>
+              )}
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                <Button variant="contained" onClick={handleCopy} startIcon={<ContentCopyIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', bgcolor: '#1a73e8' }}>
+                  {copied ? 'Copié ✓' : 'Copier le HTML'}
+                </Button>
+                <Button variant="outlined" onClick={() => {
+                  const blob = new Blob([result.html], { type: 'text/html' });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a'); a.href = url; a.download = 'cv_optimise_ats.html'; a.click();
+                  URL.revokeObjectURL(url);
+                }} startIcon={<DownloadIcon />} sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
+                  Télécharger HTML
+                </Button>
+              </Box>
+            </Paper>
+            <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+              <Box sx={{ bgcolor: '#202124', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff5f56' }} />
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ffbd2e' }} />
+                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#27c93f' }} />
+                <Typography variant="caption" sx={{ color: '#9aa0a6', ml: 1 }}>Aperçu du CV optimisé</Typography>
+              </Box>
+              <Box sx={{ height: 600, overflow: 'auto', bgcolor: '#fff' }}>
+                <iframe srcDoc={result.html} style={{ width: '100%', height: '100%', border: 'none' }} title="CV Preview" />
+              </Box>
+            </Paper>
+          </Box>
+        )}
+
+        <Box sx={{ textAlign: 'center', mt: 6, mb: 2 }}>
+          <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
+            ATS CV Optimizer · Propulsé par Prospimmo · Les données ne sont pas stockées
+          </Typography>
+        </Box>
+      </Container>
+      <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="✅ HTML copié" />
+    </Box>
   );
 }
