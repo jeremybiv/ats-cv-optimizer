@@ -24,6 +24,16 @@ export async function initDB() {
       name VARCHAR(255),
       created_at TIMESTAMP DEFAULT NOW()
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS generated_cvs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      job_title TEXT,
+      company TEXT,
+      template_used TEXT DEFAULT 'visual',
+      html TEXT,
+      score INTEGER,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`;
     return true;
   } catch (e) {
     console.error('[DB] Init error:', e.message);
@@ -67,6 +77,50 @@ export async function createSharedCV({ html, email = null, name = null }) {
 export async function getSharedCV(id) {
   try {
     const { rows } = await sql`SELECT * FROM shared_cvs WHERE id = ${id}`;
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+// -- Generated CVs (Historique) --
+
+export async function saveGeneratedCV({ userId, jobTitle, company, templateUsed, html, score }) {
+  try {
+    const { rows } = await sql`
+      INSERT INTO generated_cvs (user_id, job_title, company, template_used, html, score)
+      VALUES (${userId}, ${jobTitle || null}, ${company || null}, ${templateUsed || 'visual'}, ${html}, ${score || null})
+      RETURNING id, job_title, company, template_used, score, created_at
+    `;
+    return rows[0];
+  } catch (e) {
+    console.error('[DB] saveGeneratedCV error:', e.message);
+    throw e;
+  }
+}
+
+export async function getUserGeneratedCVs(userId, limit = 20) {
+  try {
+    const { rows } = await sql`
+      SELECT id, job_title, company, template_used, score, created_at
+      FROM generated_cvs
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+      LIMIT ${limit}
+    `;
+    return rows;
+  } catch (e) {
+    console.error('[DB] getUserGeneratedCVs error:', e.message);
+    return [];
+  }
+}
+
+export async function getGeneratedCVById(id, userId) {
+  try {
+    const { rows } = await sql`
+      SELECT * FROM generated_cvs
+      WHERE id = ${id} AND user_id = ${userId}
+    `;
     return rows[0] || null;
   } catch {
     return null;

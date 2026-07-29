@@ -4,7 +4,8 @@ import {
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
   Card, CircularProgress, Divider, Avatar, Menu, MenuItem, Dialog,
-  DialogTitle, DialogContent, DialogActions
+  DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemButton,
+  ListItemText, ListItemAvatar, Tooltip
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SearchIcon from '@mui/icons-material/Search';
@@ -19,6 +20,10 @@ import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
+import HistoryIcon from '@mui/icons-material/History';
+import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
+import WorkIcon from '@mui/icons-material/Work';
+import BusinessIcon from '@mui/icons-material/Business';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -50,6 +55,11 @@ export default function Home() {
   const [linkedinError, setLinkedinError] = useState(null);
   const [linkedinManualText, setLinkedinManualText] = useState('');
   const [showManualInput, setShowManualInput] = useState(false);
+
+  // History state
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const calculateLiveScore = useCallback((text) => {
     if (!text || text.length < 20) {
@@ -93,13 +103,74 @@ export default function Home() {
     reader.readAsDataURL(file);
   });
 
+  // Auto-save generated CV to history
+  const autoSaveToHistory = useCallback(async (data) => {
+    if (!session?.user?.id) return;
+    try {
+      await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jobTitle: data.jobTitle || '',
+          company: data.company || '',
+          templateUsed: selectedTemplate,
+          html: data.html,
+          score: data.matchScore || null,
+        }),
+      });
+    } catch (err) {
+      console.warn('[History] Auto-save failed:', err.message);
+    }
+  }, [session, selectedTemplate]);
+
+  // Load history
+  const loadHistory = useCallback(async () => {
+    if (!session?.user?.id) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/history');
+      if (!res.ok) throw new Error('Erreur chargement');
+      const data = await res.json();
+      setHistoryList(data.cvs || []);
+    } catch (err) {
+      console.error('[History] Load error:', err.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [session]);
+
+  // Open history dialog
+  const handleOpenHistory = useCallback(() => {
+    loadHistory();
+    setHistoryOpen(true);
+  }, [loadHistory]);
+
+  // Restore a CV from history
+  const handleRestoreCV = useCallback(async (cvId) => {
+    try {
+      const res = await fetch(`/api/history/${cvId}`);
+      if (!res.ok) throw new Error('Erreur restauration');
+      const data = await res.json();
+      if (data.cv) {
+        setResult({
+          html: data.cv.html,
+          matchScore: data.cv.score || 0,
+          jobTitle: data.cv.job_title,
+        });
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+        setHistoryOpen(false);
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+  }, []);
+
   // LinkedIn URL handler
   const handleLinkedinUrlChange = useCallback(async (url) => {
     setLinkedinUrl(url);
     setLinkedinError(null);
     setShowManualInput(false);
 
-    // Check if it's a LinkedIn URL
     if (!url || !url.includes('linkedin.com/in/')) {
       if (linkedinData) {
         setLinkedinData(null);
@@ -124,15 +195,12 @@ export default function Home() {
       }
 
       if (data.source === 'fallback') {
-        // LinkedIn blocked — show manual textarea
         setShowManualInput(true);
         setLinkedinData(null);
         setLinkedinError("Le profil LinkedIn n'a pas pu être récupéré automatiquement (LinkedIn bloque le scraping). Collez manuellement le contenu de votre profil ci-dessous.");
       } else {
-        // Successfully scraped
         setLinkedinData(data);
         setShowManualInput(false);
-        // Clear any previously entered manual text
         setLinkedinManualText('');
       }
     } catch (err) {
@@ -178,6 +246,9 @@ export default function Home() {
       setStep(2);
       setResult(data);
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+
+      // Auto-save to history if user is connected
+      autoSaveToHistory(data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -260,7 +331,6 @@ export default function Home() {
     }
   };
 
-  // Build a readable profile summary
   const linkedinProfilePreview = linkedinData ? (
     <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#e8f0fe', borderRadius: 2, border: '1px solid #b3d4fc' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
@@ -307,6 +377,40 @@ export default function Home() {
             ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
           </Typography>
           <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* History button — visible only when connected */}
+            {session?.user && (
+              <Tooltip title="Historique des CV générés">
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<HistoryIcon />}
+                  onClick={handleOpenHistory}
+                  sx={{
+                    borderRadius: '20px',
+                    textTransform: 'none',
+                    fontSize: '0.8rem',
+                    borderColor: '#dadce0',
+                    color: '#5f6368',
+                    display: { xs: 'none', sm: 'inline-flex' },
+                    '&:hover': { borderColor: '#1a73e8', color: '#1a73e8', bgcolor: '#e8f0fe' },
+                  }}
+                >
+                  Historique
+                </Button>
+              </Tooltip>
+            )}
+            {session?.user && (
+              <IconButton
+                size="small"
+                onClick={handleOpenHistory}
+                sx={{
+                  display: { xs: 'inline-flex', sm: 'none' },
+                  color: '#5f6368',
+                }}
+              >
+                <HistoryIcon fontSize="small" />
+              </IconButton>
+            )}
             <Typography variant="caption" sx={{ color: '#5f6368', display: { xs: 'none', sm: 'block' } }}>
               {session?.user?.email}
             </Typography>
@@ -325,7 +429,6 @@ export default function Home() {
       </Box>
 
       <Container maxWidth="lg" sx={{ py: { xs: 3, md: 5 } }}>
-        {/* Hero */}
         <Box sx={{ textAlign: 'center', mb: 5 }}>
           <Typography variant="h4" sx={{ fontWeight: 500, color: '#202124', fontSize: { xs: '1.5rem', md: '2rem' }, mb: 1 }}>
             Un CV qui passe les robots 🤖 <span style={{ color: '#1a73e8' }}>et séduit les recruteurs</span>
@@ -335,16 +438,12 @@ export default function Home() {
           </Typography>
         </Box>
 
-        {/* Upload card */}
         <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
           <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' } }}>
-            {/* Left column: CV upload + LinkedIn import */}
             <Box sx={{ flex: 1, p: { xs: 2, md: 3 }, borderRight: { md: '1px solid #e0e0e0' } }}>
               <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <ArticleIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Ton CV ou profil
               </Typography>
-
-              {/* CV Upload — hidden when LinkedIn data is active */}
               {!linkedinData && !linkedinUrl && (
                 <Box onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)} onDrop={handleDrop}
@@ -372,17 +471,11 @@ export default function Home() {
                   )}
                 </Box>
               )}
-
-              {/* LinkedIn data preview — replaces CV upload */}
               {linkedinProfilePreview}
-
-              {/* Show CV upload again if LinkedIn URL is cleared */}
               {!linkedinData && linkedinUrl && !cvFile && (
                 <Box sx={{ mb: 2 }}>
                   <Button 
-                    size="small" 
-                    variant="outlined" 
-                    startIcon={<CloudUploadIcon />}
+                    size="small" variant="outlined" startIcon={<CloudUploadIcon />}
                     onClick={() => fileRef.current?.click()}
                     sx={{ borderRadius: '16px', textTransform: 'none', fontSize: '0.75rem', borderColor: '#dadce0', color: '#5f6368' }}
                   >
@@ -391,8 +484,6 @@ export default function Home() {
                   <input ref={fileRef} type="file" accept=".pdf" onChange={handleFileSelect} hidden />
                 </Box>
               )}
-
-              {/* LinkedIn URL field */}
               <Box sx={{ mt: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                   <LinkedInIcon sx={{ color: '#0a66c2', fontSize: 20 }} />
@@ -400,12 +491,8 @@ export default function Home() {
                     Ou importe ton profil LinkedIn
                   </Typography>
                 </Box>
-                <TextField
-                  fullWidth
-                  size="small"
-                  placeholder="https://www.linkedin.com/in/tonprofil/"
-                  value={linkedinUrl}
-                  onChange={(e) => handleLinkedinUrlChange(e.target.value)}
+                <TextField fullWidth size="small" placeholder="https://www.linkedin.com/in/tonprofil/"
+                  value={linkedinUrl} onChange={(e) => handleLinkedinUrlChange(e.target.value)}
                   disabled={linkedinLoading}
                   sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   InputProps={{
@@ -417,33 +504,24 @@ export default function Home() {
                   }}
                 />
               </Box>
-
-              {/* LinkedIn error / manual textarea fallback */}
               {linkedinError && (
                 <Alert severity={showManualInput ? 'info' : 'error'} sx={{ mt: 1.5, borderRadius: 2, fontSize: '0.8rem' }}>
                   {linkedinError}
                 </Alert>
               )}
-
               {showManualInput && (
                 <Box sx={{ mt: 1.5 }}>
                   <Typography variant="caption" sx={{ color: '#5f6368', mb: 0.5, display: 'block', fontWeight: 500 }}>
                     Colle le contenu de ton profil LinkedIn (nom, expérience, compétences...)
                   </Typography>
-                  <TextField
-                    fullWidth
-                    multiline
-                    rows={6}
+                  <TextField fullWidth multiline rows={6}
                     placeholder={`Exemple:\nJean Dupont\nDéveloppeur Full Stack\n\nExpérience:\n- TechCorp (2020-2024) - Développeur React/Node.js\n- StartupXYZ (2018-2020) - Développeur Frontend\n\nCompétences: JavaScript, React, Node.js, Python, AWS`}
-                    value={linkedinManualText}
-                    onChange={(e) => setLinkedinManualText(e.target.value)}
+                    value={linkedinManualText} onChange={(e) => setLinkedinManualText(e.target.value)}
                     sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
                   />
                 </Box>
               )}
             </Box>
-
-            {/* Right column: Job offer */}
             <Box sx={{ flex: 1.5, p: { xs: 2, md: 3 } }}>
               <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
                 <SearchIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> L'offre d'emploi
@@ -459,20 +537,12 @@ export default function Home() {
                 placeholder="Colle directement le texte de l'offre ici..."
                 value={jobText} onChange={(e) => setJobText(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
-              {/* Live ATS Score */}
               {liveScore !== null && (
                 <Box sx={{ mt: 2, p: 2, bgcolor: "#f8f9fa", borderRadius: 2, border: "1px solid #e0e0e0" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
                     <Box sx={{ position: "relative", display: "inline-flex" }}>
-                      <CircularProgress
-                        variant="determinate"
-                        value={liveScore}
-                        size={72}
-                        thickness={5}
-                        sx={{ 
-                          color: liveScore > 70 ? "#34a853" : liveScore > 40 ? "#f9ab00" : "#ea4335",
-                        }}
-                      />
+                      <CircularProgress variant="determinate" value={liveScore} size={72} thickness={5}
+                        sx={{ color: liveScore > 70 ? "#34a853" : liveScore > 40 ? "#f9ab00" : "#ea4335" }} />
                       <Box sx={{ top: 0, left: 0, bottom: 0, right: 0, position: "absolute", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <Typography variant="body2" sx={{ fontWeight: 600, color: liveScore > 70 ? "#34a853" : liveScore > 40 ? "#f9ab00" : "#ea4335" }}>
                           {liveScore}%
@@ -490,13 +560,10 @@ export default function Home() {
                   </Box>
                   {liveKeywords.length > 0 && (
                     <Box sx={{ mt: 1.5 }}>
-                      <Typography variant="caption" sx={{ color: "#5f6368", mb: 0.5, display: "block" }}>
-                        Mots-cles detectes
-                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#5f6368", mb: 0.5, display: "block" }}>Mots-cles detectes</Typography>
                       <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
                         {liveKeywords.map((kw, i) => (
-                          <Chip key={i} label={kw} size="small"
-                            sx={{ bgcolor: "#e8f0fe", color: "#1a73e8", fontSize: "0.7rem", height: 22 }} />
+                          <Chip key={i} label={kw} size="small" sx={{ bgcolor: "#e8f0fe", color: "#1a73e8", fontSize: "0.7rem", height: 22 }} />
                         ))}
                       </Box>
                     </Box>
@@ -505,7 +572,6 @@ export default function Home() {
               )}
             </Box>
           </Box>
-          {/* Template Selector */}
           <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderTop: '1px solid #e0e0e0' }}>
             <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
               <AutoAwesomeIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Style de CV
@@ -514,32 +580,28 @@ export default function Home() {
               <Box onClick={() => { setSelectedTemplate('visual'); setStrictMode(false); }}
                 sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
                   borderColor: selectedTemplate === 'visual' ? '#1a73e8' : '#dadce0',
-                  bgcolor: selectedTemplate === 'visual' ? '#e8f0fe' : '#fff',
-                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                  bgcolor: selectedTemplate === 'visual' ? '#e8f0fe' : '#fff', transition: 'all 0.2s',
+                  '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
                 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                   <Typography variant="h5" sx={{ lineHeight: 1 }}>🎨</Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>Professionnel</Typography>
                   {selectedTemplate === 'visual' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
                 </Box>
-                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
-                  Design luxe/corporate - idéal pour recruteur humain
-                </Typography>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>Design luxe/corporate - idéal pour recruteur humain</Typography>
               </Box>
               <Box onClick={() => { setSelectedTemplate('ats'); setStrictMode(true); }}
                 sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
                   borderColor: selectedTemplate === 'ats' ? '#1a73e8' : '#dadce0',
-                  bgcolor: selectedTemplate === 'ats' ? '#e8f0fe' : '#fff',
-                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                  bgcolor: selectedTemplate === 'ats' ? '#e8f0fe' : '#fff', transition: 'all 0.2s',
+                  '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
                 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
                   <Typography variant="h5" sx={{ lineHeight: 1 }}>📄</Typography>
                   <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>ATS Strict</Typography>
                   {selectedTemplate === 'ats' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
                 </Box>
-                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
-                  Optimisé pour les ATS stricts (Workday, Taleo, iCIMS)
-                </Typography>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>Optimisé pour les ATS stricts (Workday, Taleo, iCIMS)</Typography>
               </Box>
             </Box>
           </Box>
@@ -556,7 +618,6 @@ export default function Home() {
           </Box>
         </Paper>
 
-        {/* Progress */}
         {loading && (
           <Box sx={{ mb: 3 }}>
             <LinearProgress variant="determinate" value={step * 50} sx={{ borderRadius: 2, height: 4, '& .MuiLinearProgress-bar': { bgcolor: '#1a73e8' } }} />
@@ -570,7 +631,6 @@ export default function Home() {
 
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
-        {/* Results */}
         {result && (
           <Box ref={resultRef}>
             <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 3, mb: 3 }}>
@@ -608,8 +668,7 @@ export default function Home() {
                   <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1, fontSize: '0.85rem' }}>Mots-clés</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                     {result.keywords.map((kw, i) => (
-                      <Chip key={i} label={kw} size="small"
-                        sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontSize: '0.75rem' }} />
+                      <Chip key={i} label={kw} size="small" sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontSize: '0.75rem' }} />
                     ))}
                   </Box>
                 </Box>
@@ -664,23 +723,94 @@ export default function Home() {
         <DialogTitle sx={{ fontWeight: 500 }}>✅ CV partagé avec succès !</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ color: '#5f6368', mb: 2 }}>
-            Le lien de partage a été copié dans votre presse-papier. Vous pouvez le partager avec les recruteurs.
+            Le lien de partage a été copié dans votre presse-papier.
           </Typography>
-          <Box sx={{ 
-            bgcolor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 2, 
-            p: 2, wordBreak: 'break-all', fontSize: '0.85rem', fontFamily: 'monospace', color: '#1a73e8'
-          }}>
+          <Box sx={{ bgcolor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 2, p: 2, wordBreak: 'break-all', fontSize: '0.85rem', fontFamily: 'monospace', color: '#1a73e8' }}>
             {shareLink}
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => {
-            navigator.clipboard.writeText(shareLink || '');
-            setShareSnackbar(true);
-          }} sx={{ textTransform: 'none', color: '#1a73e8' }}>
+          <Button onClick={() => { navigator.clipboard.writeText(shareLink || ''); setShareSnackbar(true); }} sx={{ textTransform: 'none', color: '#1a73e8' }}>
             Copier le lien
           </Button>
           <Button onClick={() => setShareDialogOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* History Dialog */}
+      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <HistoryIcon sx={{ color: '#1a73e8' }} /> Historique des CV générés
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {historyLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+              <CircularProgress size={32} />
+            </Box>
+          ) : historyList.length === 0 ? (
+            <Box sx={{ textAlign: 'center', py: 4, px: 2 }}>
+              <HistoryIcon sx={{ fontSize: 48, color: '#dadce0', mb: 1 }} />
+              <Typography variant="body2" sx={{ color: '#5f6368' }}>
+                Aucun CV généré pour le moment.
+              </Typography>
+              <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
+                Une fois connecté, tes CV seront sauvegardés automatiquement.
+              </Typography>
+            </Box>
+          ) : (
+            <List disablePadding>
+              {historyList.map((cv, index) => (
+                <ListItem key={cv.id} disablePadding divider={index < historyList.length - 1}>
+                  <ListItemButton onClick={() => handleRestoreCV(cv.id)} sx={{ py: 2 }}>
+                    <ListItemAvatar>
+                      <Avatar sx={{ bgcolor: '#e8f0fe', color: '#1a73e8' }}>
+                        <ArticleIcon />
+                      </Avatar>
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography variant="body2" sx={{ fontWeight: 500, color: '#202124' }}>
+                            {cv.job_title || 'Sans titre'}
+                          </Typography>
+                          {cv.score && (
+                            <Chip label={`${cv.score}%`} size="small" sx={{
+                              height: 20, fontSize: '0.65rem', fontWeight: 600,
+                              bgcolor: cv.score >= 70 ? '#e6f4ea' : cv.score >= 40 ? '#fef7e0' : '#fce8e6',
+                              color: cv.score >= 70 ? '#34a853' : cv.score >= 40 ? '#f9ab00' : '#ea4335',
+                            }} />
+                          )}
+                        </Box>
+                      }
+                      secondary={
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5, flexWrap: 'wrap' }}>
+                          {cv.company && (
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                              <BusinessIcon sx={{ fontSize: 12, color: '#9aa0a6' }} />
+                              <Typography variant="caption" sx={{ color: '#5f6368' }}>{cv.company}</Typography>
+                            </Box>
+                          )}
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.3 }}>
+                            <CalendarTodayIcon sx={{ fontSize: 12, color: '#9aa0a6' }} />
+                            <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
+                              {new Date(cv.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                            </Typography>
+                          </Box>
+                          <Chip label={cv.template_used === 'ats' ? 'ATS Strict' : 'Professionnel'} size="small" variant="outlined"
+                            sx={{ height: 18, fontSize: '0.6rem', borderColor: '#dadce0', color: '#5f6368' }} />
+                        </Box>
+                      }
+                    />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryOpen(false)} sx={{ textTransform: 'none', color: '#5f6368' }}>
             Fermer
           </Button>
         </DialogActions>
