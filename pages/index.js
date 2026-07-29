@@ -55,7 +55,6 @@ export default function Home() {
     const lengthScore = Math.min(40, (text.length / 500) * 40);
     const keywordDensity = uniqueKeywords.length > 0 ? Math.min(30, uniqueKeywords.length * 5) : 0;
     const structureScore = text.includes('\n') ? 15 : 0;
-    const structureScore = text.includes('\\n') ? 15 : 0;
     const varietyScore = Math.min(15, (new Set(words).size / Math.max(words.length, 1)) * 20);
     const score = Math.min(100, Math.round(lengthScore + keywordDensity + structureScore + varietyScore));
     setLiveScore(score);
