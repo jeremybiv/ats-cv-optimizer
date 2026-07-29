@@ -133,85 +133,82 @@ function scoreCV(cvText, jobKeywords) {
   return { overall, details: { keywordMatch: keywordScore, structure: structureScore, length: lengthScore, density: densityScore }, breakdown: { matchedKeywords: matched, missingKeywords: missing, wordCount, structureChecks } };
 }
 
-function generateOptimizedCV(parsedCV, jobKeywords) {
-  const name = parsedCV.name || 'Votre Nom';
-  const email = parsedCV.email || 'email@example.com';
-  const phone = parsedCV.phone || '+33 X XX XX XX XX';
-  const summary = parsedCV.summary || '';
-  const experience = parsedCV.experience || [];
-  const education = parsedCV.education || [];
-  const existingSkills = parsedCV.skills || [];
-  const allSkills = [...new Set([...existingSkills, ...(jobKeywords.technical || []), ...(jobKeywords.soft || [])])];
-  const keywordSet = new Set((jobKeywords.all || []).map(k => k.toLowerCase()));
+function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode }) {
+  // strictMode: true => one-column ATS-strict, false (default) => two-column visual template
+  const name = parsedCV?.name || 'Candidat';
+  const email = parsedCV?.email || 'email@exemple.com';
+  const phone = parsedCV?.phone || '';
+  const summary = parsedCV?.summary || '';
+  const experience = parsedCV?.experience || [];
+  const education = parsedCV?.education || [];
+  const existingSkills = parsedCV?.skills || [];
+  const allSkills = [...new Set([...existingSkills, ...(jobKeywords?.technical || []), ...(jobKeywords?.soft || [])])];
+  const keywordSet = new Set((jobKeywords?.all || []).map(k => k.toLowerCase()));
   const prioritizedSkills = [...allSkills.filter(s => keywordSet.has(s.toLowerCase())), ...allSkills.filter(s => !keywordSet.has(s.toLowerCase()))];
-  const metaKeywords = (jobKeywords.all || []).slice(0, 20).join(', ');
+  const metaKeywords = (jobKeywords?.all || []).slice(0, 20).join(', ');
+  const summaryKw = (jobKeywords?.technical || []).slice(0, 3).join(', ');
+  const summaryText = summary || ('Professionnel(le) qualifie(e) avec expertise en ' + (summaryKw || 'developpement et technologies') + '.');
 
-  let expHTML = '';
-  if (experience.length > 0) {
-    expHTML = experience.map(function(exp) {
-      var h = '<div class=\"section\">\n';
-      h += '      <h2>' + (exp.title || 'Experience') + '</h2>\n';
-      if (exp.company) {
-        h += '      <p><strong>' + exp.company + '</strong>';
-        if (exp.dates) { h += ' | ' + exp.dates; }
-        h += '</p>\n';
-      }
-      if (exp.description && exp.description.length > 0) {
-        h += '      <ul>\n';
-        h += exp.description.map(function(d) { return '        <li>' + d + '</li>'; }).join('\n');
-        h += '\n      </ul>\n';
-      } else {
-        h += '      <p>Description de l\\' + 'experience professionnelle.</p>\n';
-      }
-      h += '    </div>';
-      return h;
-    }).join('\n\n');
-  } else {
-    expHTML = '<div class=\"section\">\n      <h2>Experience Professionnelle</h2>\n      <p>Experience professionnelle detaillee.</p>\n';
-    var tk = (jobKeywords.technical || []).slice(0, 5);
-    for (var i = 0; i < tk.length; i++) {
-      expHTML += '      <p>\u2022 Mise en oeuvre de <strong>' + tk[i] + '</strong></p>\n';
+  function buildExpHTML() {
+    if (experience.length > 0) {
+      return experience.map(function(exp) {
+        var h = '<div class="section">\n';
+        if (exp.dates) h += '      <div class="exp-header"><span class="exp-title">' + (exp.title || 'Experience') + '</span><span class="exp-date">' + exp.dates + '</span></div>\n';
+        else h += '      <div class="exp-header"><span class="exp-title">' + (exp.title || 'Experience') + '</span></div>\n';
+        if (exp.company) h += '      <p class="exp-company">' + exp.company + '</p>\n';
+        if (exp.description && exp.description.length > 0) {
+          h += '      <ul>\n';
+          h += exp.description.map(function(d) { return '        <li>' + d + '</li>'; }).join('\n');
+          h += '\n      </ul>\n';
+        }
+        h += '    </div>';
+        return h;
+      }).join('\n\n');
     }
-    expHTML += '    </div>';
+    var h = '<div class="section">\n      <h2>Experience Professionnelle</h2>\n';
+    (jobKeywords?.technical || []).slice(0, 5).forEach(function(k) {
+      h += '      <p>• Mise en oeuvre de <strong>' + k + '</strong></p>\n';
+    });
+    h += '    </div>';
+    return h;
   }
 
-  let eduHTML = '';
-  if (education.length > 0) {
-    eduHTML = education.map(function(edu) {
-      var h = '<div class=\"section\">\n';
-      h += '      <h2>' + (edu.degree || 'Formation') + '</h2>\n';
-      if (edu.institution) {
-        h += '      <p><strong>' + edu.institution + '</strong>';
-        if (edu.dates) { h += ' | ' + edu.dates; }
-        h += '</p>\n';
-      }
-      if (edu.description && edu.description.length > 0) {
-        h += '      <ul>\n';
-        h += edu.description.map(function(d) { return '        <li>' + d + '</li>'; }).join('\n');
-        h += '\n      </ul>\n';
-      }
-      h += '    </div>';
-      return h;
-    }).join('\n\n');
-  } else {
-    eduHTML = '<div class=\"section\">\n      <h2>Formation</h2>\n      <p>Diplome et formation pertinente.</p>\n    </div>';
+  function buildEduHTML() {
+    if (education.length > 0) {
+      return education.map(function(edu) {
+        var h = '<div class="section">\n      <h2>' + (edu.degree || 'Formation') + '</h2>\n';
+        if (edu.institution) h += '      <p class="exp-company">' + edu.institution + '</p>\n';
+        if (edu.dates) h += '      <p class="exp-date">' + edu.dates + '</p>\n';
+        return h + '    </div>';
+      }).join('\n\n');
+    }
+    return '<div class="section">\n      <h2>Formation</h2>\n      <p>Diplome et formation pertinente.</p>\n    </div>';
   }
 
-  let skillsHTML = '';
-  if (prioritizedSkills.length > 0) {
-    skillsHTML = prioritizedSkills.map(function(s) {
-      return '<span class=\"competences\">' + s.charAt(0).toUpperCase() + s.slice(1) + '</span>';
-    }).join(' ');
-  } else {
-    skillsHTML = (jobKeywords.all || []).slice(0, 10).map(function(k) {
-      return '<span class=\"competences\">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
+  function buildSkillsHTML() {
+    if (prioritizedSkills.length > 0) {
+      return prioritizedSkills.map(function(s) {
+        var cls = keywordSet.has(s.toLowerCase()) ? 'pill dark' : 'pill light';
+        return '<span class="' + cls + '">' + s.charAt(0).toUpperCase() + s.slice(1) + '</span>';
+      }).join(' ');
+    }
+    return (jobKeywords?.all || []).slice(0, 10).map(function(k) {
+      return '<span class="pill dark">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
     }).join(' ');
   }
 
-  var summaryKw = (jobKeywords.technical || []).slice(0, 3).join(', ');
-  var summaryText = summary || ('Professionnel(le) qualifie(e) avec expertise en ' + (summaryKw || 'developpement et technologies') + '.');
+  var expHTML = buildExpHTML();
+  var eduHTML = buildEduHTML();
+  var skillsHTML = buildSkillsHTML();
 
-  return '<!DOCTYPE html>\n<html lang=\"fr\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <meta name=\"keywords\" content=\"' + metaKeywords + '\">\n  <meta name=\"description\" content=\"CV optimise ATS - ' + name + '\">\n  <title>CV Optimise - ' + name + '</title>\n  <style>\n    * { margin: 0; padding: 0; box-sizing: border-box; }\n    body { font-family: Arial, \"Helvetica Neue\", Helvetica, sans-serif; font-size: 11pt; max-width: 800px; margin: auto; padding: 25px 30px; color: #222; line-height: 1.5; background: #fff; }\n    h1 { font-size: 22px; color: #1a56db; border-bottom: 2px solid #1a56db; padding-bottom: 6px; margin-bottom: 8px; }\n    .contact-info { font-size: 10pt; color: #555; margin-bottom: 14px; }\n    h2 { font-size: 14pt; color: #1a56db; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-top: 14px; margin-bottom: 8px; }\n    p { margin-bottom: 6px; }\n    ul { padding-left: 18px; margin-bottom: 8px; }\n    li { margin-bottom: 3px; line-height: 1.4; }\n    .section { margin-bottom: 12px; }\n    .competences { display: inline-block; background: #e8f0fe; color: #1a56db; padding: 2px 8px; margin: 2px; border-radius: 3px; font-size: 10pt; }\n    .summary-text { margin-bottom: 10px; text-align: justify; }\n    .meta-footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee; font-size: 8pt; color: #999; }\n    strong { color: #333; }\n  </style>\n</head>\n<body>\n  <h1>' + name + '</h1>\n  <div class=\"contact-info\">' + email + ' | ' + phone + '</div>\n  <div class=\"section\">\n    <h2>Resume</h2>\n    <p class=\"summary-text\">' + summaryText + '</p>\n  </div>\n  <div class=\"section\">\n    <h2>Competences Techniques</h2>\n    <p>' + skillsHTML + '</p>\n  </div>\n  ' + expHTML + '\n  ' + eduHTML + '\n  <div class=\"meta-footer\">\n    <p>Mots-cles: ' + metaKeywords + '</p>\n    <p>CV genere et optimise pour les ATS</p>\n  </div>\n</body>\n</html>';
+  if (strictMode) {
+    // ATS STRICT — one column, no graphics, linear layout
+    return '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1.0">\n  <title>CV - ' + name + '</title>\n  <style>\n    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:800px;margin:auto;padding:25px 30px;color:#222;line-height:1.4;}\n    h1{font-size:20pt;color:#1a56db;border-bottom:2px solid #1a56db;padding-bottom:4px;}\n    .contact{font-size:10pt;color:#555;margin-bottom:12px;}\n    h2{font-size:13pt;color:#1a56db;border-bottom:1px solid #ddd;padding-bottom:2px;margin-top:12px;margin-bottom:6px;}\n    .pill{display:inline-block;font-size:10pt;padding:2px 8px;margin:2px;border-radius:3px;background:#e8f0fe;color:#1a56db;}\n    ul{padding-left:16px;margin:4px 0;}\n    li{margin-bottom:2px;font-size:10.5pt;}\n    .exp-header{display:flex;justify-content:space-between;font-weight:700;font-size:11pt;}\n    .exp-date{font-weight:400;color:#666;font-size:9.5pt;}\n    .exp-company{font-size:10pt;color:#444;margin-bottom:2px;}\n    .meta-footer{margin-top:20px;padding-top:8px;border-top:1px solid #eee;font-size:8pt;color:#999;}\n  </style>\n</head>\n<body>\n  <h1>' + name + '</h1>\n  <div class="contact">' + email + (phone ? ' | ' + phone : '') + '</div>\n  <div class="section">\n    <h2>Resume</h2>\n    <p>' + summaryText + '</p>\n  </div>\n  <div class="section">\n    <h2>Competences</h2>\n    <p>' + skillsHTML + '</p>\n  </div>\n  ' + expHTML + '\n  ' + eduHTML + '\n  <div class="meta-footer">\n    <p>Mots-cles: ' + metaKeywords + '</p>\n    <p>CV genere pour ATS</p>\n  </div>\n</body>\n</html>';
+  }
+
+  // DEFAULT — two-column visual template with header
+  var jobTitle = job?.title || 'Titre du poste vise';
+  return '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1.0">\n  <meta name="keywords" content="' + metaKeywords + '">\n  <title>CV - ' + name + '</title>\n  <style>\n    :root{--ink:#1c1c1c;--paper:#fff;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}\n    body{margin:0;font-family:Georgia,\'Times New Roman\',serif;color:var(--ink);font-size:14px;line-height:1.5;max-width:210mm;margin:auto;}\n    .header{background:var(--dark);color:#fff;padding:32px 40px 24px 40px;}\n    .header h1{margin:0;font-size:32px;font-weight:400;}\n    .header .sub{font-size:16px;color:var(--sand);margin:4px 0;}\n    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#2b2b2b;color:#f2ede3;padding:4px 10px;border-radius:3px;display:inline-block;margin:2px;}\n    .layout{display:flex;}\n    .main{flex:1 1 68%;padding:24px 32px 32px 40px;}\n    .side{flex:0 0 32%;background:var(--sand);padding:24px 24px 32px 24px;border-left:1px solid var(--sandline);}\n    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:5px;}\n    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:14px 16px;font-size:13px;}\n    .exp-title{font-size:14.5px;font-weight:bold;}\n    .exp-company{font-size:13px;color:var(--gold);margin:2px 0 4px;}\n    .exp-date{font-size:12px;color:var(--muted);}\n    .exp-stack{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:var(--muted);font-style:italic;}\n    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10px;padding:3px 8px;border-radius:2px;display:inline-block;margin:2px;}\n    .pill.dark{background:var(--dark);color:#fff;}\n    .pill.light{background:#fff;border:1px solid var(--sandline);color:#333;}\n    ul{padding-left:16px;margin:4px 0;}\n    li{margin-bottom:2px;font-size:12.5px;}\n    @media print{.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}\n  </style>\n</head>\n<body>\n  <div class="header">\n    <h1>' + name + '</h1>\n    <div class="sub">' + jobTitle + '</div>\n    <div style="margin-top:8px;">\n      ' + (jobKeywords?.technical || []).slice(0, 5).map(function(k) { return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>'; }).join('') + '\n    </div>\n    <p style="font-size:11px;color:#aaa;margin:8px 0 0;">' + email + (phone ? ' | ' + phone : '') + '</p>\n  </div>\n  <div class="layout">\n  <div class="main">\n    <h2 class="section">Profil</h2>\n    <div class="summary-box"><p style="margin:0;">' + summaryText + '</p></div>\n    <h2 class="section">Experience professionnelle</h2>\n    ' + expHTML.replace(/<h2>/g, '<h2 class="section">') + '\n  </div>\n  <div class="side">\n    <h2 class="section">Competences</h2>\n    <div style="margin-bottom:12px;">' + skillsHTML + '</div>\n    <h2 class="section">Formation</h2>\n    ' + eduHTML.replace(/<h2>/g, '<h2 class="section">') + '\n  </div>\n  </div>\n</body>\n</html>';
 }
 
 function formatCVHTML(html, keywords) {
