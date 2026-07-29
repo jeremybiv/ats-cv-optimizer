@@ -69,4 +69,4 @@ async function fetchJobFromURL(url) {
   }
 }
 
-module.exports = { fetchJobFromURL };
+module.exports = { fetchJobFromURL, extractJobDescription: fetchJobFromURL };
