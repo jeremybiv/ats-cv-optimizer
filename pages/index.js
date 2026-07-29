@@ -4,7 +4,7 @@ import {
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
   Card, CircularProgress, Divider, Avatar, Menu, MenuItem, Dialog,
-  DialogTitle, DialogContent, DialogActions
+  DialogTitle, DialogContent, DialogActions, Tabs, Tab
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SearchIcon from '@mui/icons-material/Search';
@@ -19,6 +19,54 @@ import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
+import WorkspacesIcon from '@mui/icons-material/Workspaces';
+
+/**
+ * Split raw job text into multiple offers.
+ * Strategies:
+ *  1. Numbered lines: "1. Offre..." / "2. Offre..."
+ *  2. Blank-line separators
+ *  3. Fallback: single offer
+ */
+function splitJobOffers(text) {
+  if (!text || !text.trim()) return [];
+  const trimmed = text.trim();
+  
+  // Strategy 1: numbered list (e.g. "1. ..." or "1) ..." or "1- ...")
+  const numberedMatch = trimmed.match(/^\d+[\.\)\-]\s*/m);
+  if (numberedMatch && trimmed.split(/\n\d+[\.\)\-]\s*/).length > 1) {
+    const parts = trimmed.split(/\n(?=\d+[\.\)\-]\s*)/).map(p => p.replace(/^\d+[\.\)\-]\s*/, '').trim()).filter(Boolean);
+    if (parts.length > 1) return parts;
+  }
+
+  // Strategy 2: blank-line separation (two or more consecutive newlines)
+  const blankLineParts = trimmed.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  if (blankLineParts.length > 1) return blankLineParts;
+
+  // Fallback: single offer
+  return [trimmed];
+}
+
+/**
+ * Run async tasks with a concurrency limit.
+ */
+async function runWithLimit(tasks, limit) {
+  const results = [];
+  const executing = [];
+  for (let i = 0; i < tasks.length; i++) {
+    const p = Promise.resolve().then(() => tasks[i]());
+    results.push(p);
+    if (tasks.length > limit) {
+      const e = p.then(() => executing.splice(executing.indexOf(e), 1));
+      executing.push(e);
+      if (executing.length >= limit) {
+        await Promise.race(executing);
+      }
+    }
+  }
+  return Promise.all(results);
+}
 
 export default function Home() {
   const { data: session } = useSession();
@@ -42,6 +90,14 @@ export default function Home() {
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
+
+  // Multi-offer state
+  const [results, setResults] = useState([]);
+  const [activeTab, setActiveTab] = useState(0);
+  const [multiErrors, setMultiErrors] = useState([]);
+
+  // Interview prep state (preserved from existing working tree)
+  const [interviewLoading, setInterviewLoading] = useState(false);
 
   // LinkedIn import state
   const [linkedinUrl, setLinkedinUrl] = useState('');
@@ -75,6 +131,12 @@ export default function Home() {
     const timer = setTimeout(() => calculateLiveScore(jobText), 500);
     return () => clearTimeout(timer);
   }, [jobText, calculateLiveScore]);
+
+  // Detect number of offers in the textarea
+  const detectedOfferCount = (() => {
+    const offers = splitJobOffers(jobText);
+    return offers.length > 1 ? offers.length : 0;
+  })();
 
   const handleDrop = useCallback((e) => {
     e.preventDefault(); setDragOver(false);
@@ -151,33 +213,81 @@ export default function Home() {
     setLinkedinError(null);
   };
 
+  const handleInterviewPrep = async () => {
+    // Placeholder — interview prep feature (preserved from working tree)
+    setInterviewLoading(true);
+    try {
+      const res = await fetch('/api/interview-prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cvText: result?.html || '',
+          jobText: jobText || '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+      // TODO: display interview prep results
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setInterviewLoading(false);
+    }
+  };
+
   const handleOptimize = async () => {
     const hasCv = !!cvFile;
     const hasLinkedin = !!linkedinData || (showManualInput && linkedinManualText.trim().length > 20);
     if (!hasCv && !hasLinkedin && !jobUrl && !jobText) return;
     
-    setLoading(true); setError(null); setResult(null); setStep(0);
+    setLoading(true); setError(null); setResult(null); setResults([]); setMultiErrors([]); setActiveTab(0); setStep(0);
     try {
-      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined, strictMode };
+      const bodyBase = { strictMode };
       
       if (cvFile) {
-        body.cvBase64 = await readFileAsBase64(cvFile);
+        bodyBase.cvBase64 = await readFileAsBase64(cvFile);
       } else if (linkedinData) {
-        body.linkedinData = linkedinData;
+        bodyBase.linkedinData = linkedinData;
       } else if (showManualInput && linkedinManualText.trim().length > 20) {
-        body.cvText = linkedinManualText;
+        bodyBase.cvText = linkedinManualText;
       }
+
+      // Determine if we have multiple offers
+      const offers = splitJobOffers(jobText);
+      const isMulti = offers.length > 1 && !jobUrl;
       
-      setStep(1);
-      const res = await fetch('/api/optimize', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur serveur');
-      setStep(2);
-      setResult(data);
-      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      if (isMulti) {
+        // Multi-offer mode
+        setStep(1);
+        const tasks = offers.map((offer, index) => async () => {
+          const res = await fetch('/api/optimize', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...bodyBase, jobText: offer }),
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || `Erreur sur l'offre #${index + 1}`);
+          return { ...data, offerLabel: offer.slice(0, 80) + (offer.length > 80 ? '...' : '') };
+        });
+
+        const multiResults = await runWithLimit(tasks, 3);
+        setStep(2);
+        setResults(multiResults);
+        setActiveTab(0);
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      } else {
+        // Single-offer mode (existing behavior)
+        const body = { ...bodyBase, jobUrl: jobUrl || undefined, jobText: jobText || undefined };
+        setStep(1);
+        const res = await fetch('/api/optimize', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+        setStep(2);
+        setResult(data);
+        setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -185,28 +295,28 @@ export default function Home() {
     }
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(result?.html || '');
+  const handleCopy = (html) => {
+    navigator.clipboard.writeText(html || '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   const handleReset = () => {
-    setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
+    setCvFile(null); setJobUrl(''); setJobText(''); setResult(null); setResults([]); setMultiErrors([]);
     setError(null); setStep(0);
     setLinkedinUrl(''); setLinkedinData(null); setLinkedinManualText('');
     setShowManualInput(false); setLinkedinError(null);
   };
 
-  const handleShare = async () => {
-    if (!result?.html) return;
+  const handleShare = async (html) => {
+    if (!html) return;
     setShareLoading(true);
     try {
       const res = await fetch('/api/cv/share', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          html: result.html,
+          html: html,
           email: session?.user?.email || null,
           name: session?.user?.name || null,
         }),
@@ -224,8 +334,8 @@ export default function Home() {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!result?.html) return;
+  const handleDownloadPDF = async (html) => {
+    if (!html) return;
     try {
       if (typeof window !== 'undefined' && !window.html2pdf) {
         await new Promise((resolve, reject) => {
@@ -238,7 +348,7 @@ export default function Home() {
       }
       if (typeof window !== 'undefined' && window.html2pdf) {
         const element = document.createElement('div');
-        element.innerHTML = result.html;
+        element.innerHTML = html;
         element.style.padding = '20px';
         element.style.background = '#fff';
         element.style.width = '210mm';
@@ -297,6 +407,107 @@ export default function Home() {
 
   const isReady = cvFile || linkedinData || (showManualInput && linkedinManualText.trim().length > 20) || jobUrl || jobText;
 
+  // Result card component (used for both single and multi-offer modes)
+  const ResultActions = ({ resultData }) => (
+    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+      <Button variant="contained" onClick={() => handleCopy(resultData.html)} startIcon={<ContentCopyIcon />}
+        sx={{ borderRadius: '20px', textTransform: 'none', bgcolor: '#1a73e8' }}>
+        {copied ? 'Copié ✓' : 'Copier le HTML'}
+      </Button>
+      <Button variant="outlined" onClick={() => {
+        const blob = new Blob([resultData.html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'cv_optimise_ats.html'; a.click();
+        URL.revokeObjectURL(url);
+      }} startIcon={<DownloadIcon />} sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
+        Télécharger HTML
+      </Button>
+      <Button variant="outlined" onClick={() => handleShare(resultData.html)} disabled={shareLoading}
+        startIcon={shareLoading ? <CircularProgress size={16} /> : <ShareIcon />}
+        sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
+        {shareLoading ? 'Partage...' : 'Partager'}
+      </Button>
+      <Button variant="outlined" onClick={() => handleDownloadPDF(resultData.html)} startIcon={<PictureAsPdfIcon />}
+        sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
+        Télécharger PDF
+      </Button>
+    </Box>
+  );
+
+  const ResultStats = ({ resultData }) => (
+    <Grid container spacing={2} sx={{ mb: 2 }}>
+      <Grid item xs={6} md={3}>
+        <Card elevation={0} sx={{ bgcolor: '#e8f0fe', borderRadius: 2, textAlign: 'center', py: 2 }}>
+          <Typography variant="h4" sx={{ color: '#1a73e8', fontWeight: 600 }}>{resultData.matchScore || 0}%</Typography>
+          <Typography variant="caption" sx={{ color: '#5f6368' }}>Correspondance</Typography>
+        </Card>
+      </Grid>
+      <Grid item xs={6} md={3}>
+        <Card elevation={0} sx={{ bgcolor: '#e6f4ea', borderRadius: 2, textAlign: 'center', py: 2 }}>
+          <Typography variant="h4" sx={{ color: '#34a853', fontWeight: 600 }}>{resultData.keywordCount || 0}</Typography>
+          <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés matchés</Typography>
+        </Card>
+      </Grid>
+      <Grid item xs={6} md={3}>
+        <Card elevation={0} sx={{ bgcolor: '#fef7e0', borderRadius: 2, textAlign: 'center', py: 2 }}>
+          <Typography variant="h4" sx={{ color: '#f9ab00', fontWeight: 600 }}>{resultData.structureScore || 0}/100</Typography>
+          <Typography variant="caption" sx={{ color: '#5f6368' }}>Structure ATS</Typography>
+        </Card>
+      </Grid>
+      <Grid item xs={6} md={3}>
+        <Card elevation={0} sx={{ bgcolor: '#fce8e6', borderRadius: 2, textAlign: 'center', py: 2 }}>
+          <Typography variant="h4" sx={{ color: '#ea4335', fontWeight: 600 }}>{resultData.missingCount || 0}</Typography>
+          <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés manquants</Typography>
+        </Card>
+      </Grid>
+    </Grid>
+  );
+
+  const ResultKeywords = ({ resultData }) => (
+    resultData.keywords && (
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1, fontSize: '0.85rem' }}>Mots-clés</Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+          {resultData.keywords.map((kw, i) => (
+            <Chip key={i} label={kw} size="small"
+              sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontSize: '0.75rem' }} />
+          ))}
+        </Box>
+      </Box>
+    )
+  );
+
+  const ResultCard = ({ resultData }) => (
+    <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 3, mb: 3 }}>
+      <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <AutoAwesomeIcon sx={{ color: '#1a73e8' }} /> CV optimisé ATS
+      </Typography>
+      <ResultStats resultData={resultData} />
+      <ResultKeywords resultData={resultData} />
+      <ResultActions resultData={resultData} />
+    </Paper>
+  );
+
+  const ResultPreview = ({ html }) => (
+    <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+      <Box sx={{ bgcolor: '#202124', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff5f56' }} />
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ffbd2e' }} />
+        <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#27c93f' }} />
+        <Typography variant="caption" sx={{ color: '#9aa0a6', ml: 1 }}>Aperçu du CV optimisé</Typography>
+      </Box>
+      <Box sx={{ height: 600, overflow: 'auto', bgcolor: '#fff' }}>
+        <iframe srcDoc={html} style={{ width: '100%', height: '100%', border: 'none' }} title="CV Preview" />
+      </Box>
+    </Paper>
+  );
+
+  // Count how many results match a certain offer label
+  const tabLabels = results.map((r, i) => {
+    const label = r.offerLabel || `Offre #${i + 1}`;
+    return label.length > 25 ? label.slice(0, 22) + '...' : label;
+  });
+
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
       {/* Header */}
@@ -331,7 +542,7 @@ export default function Home() {
             Un CV qui passe les robots 🤖 <span style={{ color: '#1a73e8' }}>et séduit les recruteurs</span>
           </Typography>
           <Typography variant="body1" sx={{ color: '#5f6368', maxWidth: 600, mx: 'auto' }}>
-            Importe ton CV ou ton profil LinkedIn, colle une offre d'emploi — on génère un CV HTML optimisé ATS en quelques secondes.
+            Importe ton CV ou ton profil LinkedIn, colle une ou plusieurs offres — on génère des CV HTML optimisés ATS en quelques secondes.
           </Typography>
         </Box>
 
@@ -456,9 +667,11 @@ export default function Home() {
                 <Divider sx={{ flex: 1 }} /><Typography variant="caption" sx={{ color: '#9aa0a6' }}>ou</Typography><Divider sx={{ flex: 1 }} />
               </Box>
               <TextField fullWidth multiline rows={4}
-                placeholder="Colle directement le texte de l'offre ici..."
+                placeholder={"Colle directement le texte des offres ici...\nPlusieurs offres ? Sépare-les par une ligne vide ou numérote-les (1. ... / 2. ...)"}
                 value={jobText} onChange={(e) => setJobText(e.target.value)}
-                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+                sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }}
+                helperText={detectedOfferCount > 0 ? `${detectedOfferCount} offres détectées — un CV optimisé sera généré pour chaque offre` : ''}
+                FormHelperTextProps={{ sx: { color: detectedOfferCount > 0 ? '#1a73e8' : '#9aa0a6', fontWeight: detectedOfferCount > 0 ? 500 : 400 } }} />
               {/* Live ATS Score */}
               {liveScore !== null && (
                 <Box sx={{ mt: 2, p: 2, bgcolor: "#f8f9fa", borderRadius: 2, border: "1px solid #e0e0e0" }}>
@@ -551,7 +764,11 @@ export default function Home() {
               disabled={loading || (!cvFile && !linkedinData && !(showManualInput && linkedinManualText.trim().length > 20) && !jobUrl && !jobText)}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <AutoAwesomeIcon />}
               sx={{ borderRadius: '28px', textTransform: 'none', px: 4, bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' } }}>
-              {loading ? 'Optimisation en cours...' : '🚀 Optimiser mon CV'}
+              {loading 
+                ? 'Optimisation en cours...' 
+                : detectedOfferCount > 1 
+                  ? `🚀 Générer ${detectedOfferCount} CV` 
+                  : '🚀 Optimiser mon CV'}
             </Button>
           </Box>
         </Paper>
@@ -570,85 +787,60 @@ export default function Home() {
 
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
 
-        {/* Results */}
-        {result && (
+        {/* Multi-offer error list */}
+        {multiErrors.length > 0 && (
+          <Box sx={{ mb: 2 }}>
+            {multiErrors.map((err, i) => (
+              <Alert key={i} severity="error" sx={{ mb: 1, borderRadius: 2 }}>{err}</Alert>
+            ))}
+          </Box>
+        )}
+
+        {/* Results — Multi-offer tabs */}
+        {results.length > 0 && (
           <Box ref={resultRef}>
-            <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 3, mb: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <AutoAwesomeIcon sx={{ color: '#1a73e8' }} /> CV optimisé ATS
-              </Typography>
-              <Grid container spacing={2} sx={{ mb: 2 }}>
-                <Grid item xs={6} md={3}>
-                  <Card elevation={0} sx={{ bgcolor: '#e8f0fe', borderRadius: 2, textAlign: 'center', py: 2 }}>
-                    <Typography variant="h4" sx={{ color: '#1a73e8', fontWeight: 600 }}>{result.matchScore || 0}%</Typography>
-                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Correspondance</Typography>
-                  </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Card elevation={0} sx={{ bgcolor: '#e6f4ea', borderRadius: 2, textAlign: 'center', py: 2 }}>
-                    <Typography variant="h4" sx={{ color: '#34a853', fontWeight: 600 }}>{result.keywordCount || 0}</Typography>
-                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés matchés</Typography>
-                  </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Card elevation={0} sx={{ bgcolor: '#fef7e0', borderRadius: 2, textAlign: 'center', py: 2 }}>
-                    <Typography variant="h4" sx={{ color: '#f9ab00', fontWeight: 600 }}>{result.structureScore || 0}/100</Typography>
-                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Structure ATS</Typography>
-                  </Card>
-                </Grid>
-                <Grid item xs={6} md={3}>
-                  <Card elevation={0} sx={{ bgcolor: '#fce8e6', borderRadius: 2, textAlign: 'center', py: 2 }}>
-                    <Typography variant="h4" sx={{ color: '#ea4335', fontWeight: 600 }}>{result.missingCount || 0}</Typography>
-                    <Typography variant="caption" sx={{ color: '#5f6368' }}>Mots-clés manquants</Typography>
-                  </Card>
-                </Grid>
-              </Grid>
-              {result.keywords && (
-                <Box sx={{ mb: 2 }}>
-                  <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1, fontSize: '0.85rem' }}>Mots-clés</Typography>
-                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                    {result.keywords.map((kw, i) => (
-                      <Chip key={i} label={kw} size="small"
-                        sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontSize: '0.75rem' }} />
-                    ))}
-                  </Box>
-                </Box>
-              )}
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button variant="contained" onClick={handleCopy} startIcon={<ContentCopyIcon />}
-                  sx={{ borderRadius: '20px', textTransform: 'none', bgcolor: '#1a73e8' }}>
-                  {copied ? 'Copié ✓' : 'Copier le HTML'}
-                </Button>
-                <Button variant="outlined" onClick={() => {
-                  const blob = new Blob([result.html], { type: 'text/html' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a'); a.href = url; a.download = 'cv_optimise_ats.html'; a.click();
-                  URL.revokeObjectURL(url);
-                }} startIcon={<DownloadIcon />} sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
-                  Télécharger HTML
-                </Button>
-                <Button variant="outlined" onClick={handleShare} disabled={shareLoading}
-                  startIcon={shareLoading ? <CircularProgress size={16} /> : <ShareIcon />}
-                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
-                  {shareLoading ? 'Partage...' : 'Partager'}
-                </Button>
-                <Button variant="outlined" onClick={handleDownloadPDF} startIcon={<PictureAsPdfIcon />}
-                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
-                  Télécharger PDF
-                </Button>
+            <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden', mb: 3 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 3, pt: 2, pb: 0 }}>
+                <WorkspacesIcon sx={{ color: '#1a73e8', fontSize: 20 }} />
+                <Typography variant="subtitle1" sx={{ fontWeight: 500, color: '#202124' }}>
+                  Résultats ({results.length} offres)
+                </Typography>
               </Box>
+              <Tabs
+                value={activeTab}
+                onChange={(e, newValue) => setActiveTab(newValue)}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{
+                  px: 2,
+                  borderBottom: '1px solid #e0e0e0',
+                  '& .MuiTab-root': { textTransform: 'none', fontWeight: 500, fontSize: '0.8rem', minHeight: 48 },
+                  '& .Mui-selected': { color: '#1a73e8' },
+                  '& .MuiTabs-indicator': { bgcolor: '#1a73e8' },
+                }}
+              >
+                {results.map((r, i) => (
+                  <Tab key={i} label={
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <AutoAwesomeIcon sx={{ fontSize: 14, color: '#1a73e8' }} />
+                      <span>{tabLabels[i]}</span>
+                    </Box>
+                  } />
+                ))}
+              </Tabs>
             </Paper>
-            <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-              <Box sx={{ bgcolor: '#202124', px: 2, py: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ff5f56' }} />
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#ffbd2e' }} />
-                <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#27c93f' }} />
-                <Typography variant="caption" sx={{ color: '#9aa0a6', ml: 1 }}>Aperçu du CV optimisé</Typography>
-              </Box>
-              <Box sx={{ height: 600, overflow: 'auto', bgcolor: '#fff' }}>
-                <iframe srcDoc={result.html} style={{ width: '100%', height: '100%', border: 'none' }} title="CV Preview" />
-              </Box>
-            </Paper>
+
+            {/* Active tab result */}
+            <ResultCard resultData={results[activeTab]} />
+            <ResultPreview html={results[activeTab].html} />
+          </Box>
+        )}
+
+        {/* Results — Single offer (backward compatible) */}
+        {result && results.length === 0 && (
+          <Box ref={resultRef}>
+            <ResultCard resultData={result} />
+            <ResultPreview html={result.html} />
           </Box>
         )}
 

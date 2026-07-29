@@ -69,6 +69,7 @@ export default async function handler(req, res) {
 
     res.json({
       html: finalHTML,
+      originalCvText: cvText,
       matchScore: cvScore.matchScore || Math.min(parseInt(keywords.technical?.length || 0) * 12 + 30, 95),
       keywordCount: keywords.all?.length || keywords.length || 0,
       missingCount: cvScore.missingCount || 0,
