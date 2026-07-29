@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { SessionProvider } from 'next-auth/react';
 import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
@@ -19,11 +20,13 @@ const theme = createTheme({
   },
 });
 
-export default function App({ Component, pageProps }) {
+export default function App({ Component, pageProps: { session, ...pageProps } }) {
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Component {...pageProps} />
-    </ThemeProvider>
+    <SessionProvider session={session}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
+        <Component {...pageProps} />
+      </ThemeProvider>
+    </SessionProvider>
   );
 }
