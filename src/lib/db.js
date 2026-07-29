@@ -1,6 +1,12 @@
 import { sql } from '@vercel/postgres';
 import bcrypt from 'bcryptjs';
 
+// Support both Vercel Postgres (POSTGRES_URL) and Neon (DATABASE_URL)
+const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
+if (connectionString) {
+  process.env.POSTGRES_URL = connectionString;
+}
+
 export async function initDB() {
   try {
     await sql`CREATE TABLE IF NOT EXISTS users (
