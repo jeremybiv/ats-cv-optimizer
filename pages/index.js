@@ -3,7 +3,8 @@ import { useSession, signOut } from 'next-auth/react';
 import { 
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
-  Card, CircularProgress, Divider, Avatar, Menu, MenuItem
+  Card, CircularProgress, Divider, Avatar, Menu, MenuItem, Dialog,
+  DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SearchIcon from '@mui/icons-material/Search';
@@ -14,6 +15,8 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
+import ShareIcon from '@mui/icons-material/Share';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -31,6 +34,10 @@ export default function Home() {
   const [liveKeywords, setLiveKeywords] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('visual');
   const [strictMode, setStrictMode] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareLink, setShareLink] = useState(null);
+  const [shareSnackbar, setShareSnackbar] = useState(false);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -47,7 +54,7 @@ export default function Home() {
     const uniqueKeywords = [...new Set(keywords)];
     const lengthScore = Math.min(40, (text.length / 500) * 40);
     const keywordDensity = uniqueKeywords.length > 0 ? Math.min(30, uniqueKeywords.length * 5) : 0;
-    const structureScore = text.includes('\n') ? 15 : 0;
+    const structureScore = text.includes('\\n') ? 15 : 0;
     const varietyScore = Math.min(15, (new Set(words).size / Math.max(words.length, 1)) * 20);
     const score = Math.min(100, Math.round(lengthScore + keywordDensity + structureScore + varietyScore));
     setLiveScore(score);
@@ -108,6 +115,70 @@ export default function Home() {
   const handleReset = () => {
     setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
     setError(null); setStep(0);
+  };
+
+  const handleShare = async () => {
+    if (!result?.html) return;
+    setShareLoading(true);
+    try {
+      const res = await fetch('/api/cv/share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          html: result.html,
+          email: session?.user?.email || null,
+          name: session?.user?.name || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors du partage');
+      setShareLink(data.url);
+      navigator.clipboard.writeText(data.url);
+      setShareSnackbar(true);
+      setShareDialogOpen(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if (!result?.html) return;
+    try {
+      // Dynamically load html2pdf.js if not already loaded
+      if (typeof window !== 'undefined' && !window.html2pdf) {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = '/html2pdf.bundle.min.js';
+          script.onload = resolve;
+          script.onerror = reject;
+          document.head.appendChild(script);
+        });
+      }
+      if (typeof window !== 'undefined' && window.html2pdf) {
+        const element = document.createElement('div');
+        element.innerHTML = result.html;
+        element.style.padding = '20px';
+        element.style.background = '#fff';
+        element.style.width = '210mm';
+        document.body.appendChild(element);
+        const opt = {
+          margin:       0.5,
+          filename:     'cv_optimise_ats.pdf',
+          image:        { type: 'jpeg', quality: 0.98 },
+          html2canvas:  { scale: 2, useCORS: true },
+          jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        await window.html2pdf().set(opt).from(element).save();
+        document.body.removeChild(element);
+      } else {
+        window.print();
+      }
+    } catch (err) {
+      console.error('PDF export error:', err);
+      window.print();
+    }
   };
 
   return (
@@ -364,6 +435,15 @@ export default function Home() {
                 }} startIcon={<DownloadIcon />} sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
                   Télécharger HTML
                 </Button>
+                <Button variant="outlined" onClick={handleShare} disabled={shareLoading}
+                  startIcon={shareLoading ? <CircularProgress size={16} /> : <ShareIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
+                  {shareLoading ? 'Partage...' : 'Partager'}
+                </Button>
+                <Button variant="outlined" onClick={handleDownloadPDF} startIcon={<PictureAsPdfIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
+                  Télécharger PDF
+                </Button>
               </Box>
             </Paper>
             <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
@@ -386,7 +466,36 @@ export default function Home() {
           </Typography>
         </Box>
       </Container>
+
+      {/* Share Success Dialog */}
+      <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500 }}>✅ CV partagé avec succès !</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: '#5f6368', mb: 2 }}>
+            Le lien de partage a été copié dans votre presse-papier. Vous pouvez le partager avec les recruteurs.
+          </Typography>
+          <Box sx={{ 
+            bgcolor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 2, 
+            p: 2, wordBreak: 'break-all', fontSize: '0.85rem', fontFamily: 'monospace', color: '#1a73e8'
+          }}>
+            {shareLink}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => {
+            navigator.clipboard.writeText(shareLink || '');
+            setShareSnackbar(true);
+          }} sx={{ textTransform: 'none', color: '#1a73e8' }}>
+            Copier le lien
+          </Button>
+          <Button onClick={() => setShareDialogOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="✅ HTML copié" />
+      <Snackbar open={shareSnackbar} autoHideDuration={2000} onClose={() => setShareSnackbar(false)} message="🔗 Lien copié dans le presse-papier" />
     </Box>
   );
 }
