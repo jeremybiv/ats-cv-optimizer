@@ -29,6 +29,8 @@ export default function Home() {
   const [copied, setCopied] = useState(false);
   const [liveScore, setLiveScore] = useState(null);
   const [liveKeywords, setLiveKeywords] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('visual');
+  const [strictMode, setStrictMode] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -78,7 +80,7 @@ export default function Home() {
     if (!cvFile && !jobUrl && !jobText) return;
     setLoading(true); setError(null); setResult(null); setStep(0);
     try {
-      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined };
+      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined, strictMode };
       if (cvFile) body.cvBase64 = await readFileAsBase64(cvFile);
       setStep(1);
       const res = await fetch('/api/optimize', {
@@ -238,6 +240,47 @@ export default function Home() {
                   )}
                 </Box>
               )}
+<<<<<<< HEAD
+=======
+            </Box>
+          </Box>
+          {/* Template Selector */}
+          <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderTop: '1px solid #e0e0e0' }}>
+            <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AutoAwesomeIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Style de CV
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Box onClick={() => { setSelectedTemplate('visual'); setStrictMode(false); }}
+                sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
+                  borderColor: selectedTemplate === 'visual' ? '#1a73e8' : '#dadce0',
+                  bgcolor: selectedTemplate === 'visual' ? '#e8f0fe' : '#fff',
+                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="h5" sx={{ lineHeight: 1 }}>🎨</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>Professionnel</Typography>
+                  {selectedTemplate === 'visual' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
+                </Box>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
+                  Design luxe/corporate - idéal pour recruteur humain
+                </Typography>
+              </Box>
+              <Box onClick={() => { setSelectedTemplate('ats'); setStrictMode(true); }}
+                sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
+                  borderColor: selectedTemplate === 'ats' ? '#1a73e8' : '#dadce0',
+                  bgcolor: selectedTemplate === 'ats' ? '#e8f0fe' : '#fff',
+                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="h5" sx={{ lineHeight: 1 }}>📄</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>ATS Strict</Typography>
+                  {selectedTemplate === 'ats' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
+                </Box>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
+                  Optimisé pour les ATS stricts (Workday, Taleo, iCIMS)
+                </Typography>
+              </Box>
+>>>>>>> 2d1e6ae (feat: add template selector (Professionnel/ATS Strict) before Optimize button)
             </Box>
           </Box>
           <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: '#f8f9fa', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

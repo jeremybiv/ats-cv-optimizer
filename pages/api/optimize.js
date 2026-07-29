@@ -7,7 +7,7 @@ export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
-    const { cvBase64, jobUrl, jobText } = req.body;
+    const { cvBase64, jobUrl, jobText, strictMode } = req.body;
     let jd = jobText;
     if (jobUrl && !jd) jd = await extractJobDescription(jobUrl);
     if (!jd) throw new Error('Aucune offre d emploi fournie.');
@@ -19,7 +19,7 @@ export default async function handler(req, res) {
     const jobP = { title: '', company: '', location: '', type: '', summary: jd.slice(0, 500), description: jd };
     const parsedCV = cvText ? { text: cvText, name: '', email: '', phone: '', summary: '', skills: [], experience: [], education: [] } : null;
 
-    const optimizedHTML = generateOptimizedCV({ cvText, job: jobP, jobKeywords: keywords, parsedCV });
+    const optimizedHTML = generateOptimizedCV({ cvText, job: jobP, jobKeywords: keywords, parsedCV, strictMode });
     const finalHTML = formatCVHTML(optimizedHTML, keywords);
 
     res.json({
