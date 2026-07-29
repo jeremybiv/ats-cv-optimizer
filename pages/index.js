@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { 
   Container, Box, Typography, Button, TextField, Paper, 
@@ -27,8 +27,37 @@ export default function Home() {
   const [error, setError] = useState(null);
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [liveScore, setLiveScore] = useState(null);
+  const [liveKeywords, setLiveKeywords] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState('visual');
+  const [strictMode, setStrictMode] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
+
+  const calculateLiveScore = useCallback((text) => {
+    if (!text || text.length < 20) {
+      setLiveScore(null);
+      setLiveKeywords([]);
+      return;
+    }
+    const words = text.toLowerCase().match(/\b\w{4,}\b/g) || [];
+    const freq = {};
+    words.forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+    const keywords = Object.entries(freq).filter(([, count]) => count > 1).map(([word]) => word);
+    const uniqueKeywords = [...new Set(keywords)];
+    const lengthScore = Math.min(40, (text.length / 500) * 40);
+    const keywordDensity = uniqueKeywords.length > 0 ? Math.min(30, uniqueKeywords.length * 5) : 0;
+    const structureScore = text.includes('\n') ? 15 : 0;
+    const varietyScore = Math.min(15, (new Set(words).size / Math.max(words.length, 1)) * 20);
+    const score = Math.min(100, Math.round(lengthScore + keywordDensity + structureScore + varietyScore));
+    setLiveScore(score);
+    setLiveKeywords(uniqueKeywords.slice(0, 12));
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => calculateLiveScore(jobText), 500);
+    return () => clearTimeout(timer);
+  }, [jobText, calculateLiveScore]);
 
   const handleDrop = useCallback((e) => {
     e.preventDefault(); setDragOver(false);
@@ -51,7 +80,7 @@ export default function Home() {
     if (!cvFile && !jobUrl && !jobText) return;
     setLoading(true); setError(null); setResult(null); setStep(0);
     try {
-      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined };
+      const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined, strictMode };
       if (cvFile) body.cvBase64 = await readFileAsBase64(cvFile);
       setStep(1);
       const res = await fetch('/api/optimize', {
@@ -167,6 +196,88 @@ export default function Home() {
                 placeholder="Colle directement le texte de l'offre ici..."
                 value={jobText} onChange={(e) => setJobText(e.target.value)}
                 sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2 } }} />
+              {/* Live ATS Score */}
+              {liveScore !== null && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: "#f8f9fa", borderRadius: 2, border: "1px solid #e0e0e0" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                    <Box sx={{ position: "relative", display: "inline-flex" }}>
+                      <CircularProgress
+                        variant="determinate"
+                        value={liveScore}
+                        size={72}
+                        thickness={5}
+                        sx={{ 
+                          color: liveScore > 70 ? "#34a853" : liveScore > 40 ? "#f9ab00" : "#ea4335",
+                        }}
+                      />
+                      <Box sx={{ top: 0, left: 0, bottom: 0, right: 0, position: "absolute", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600, color: liveScore > 70 ? "#34a853" : liveScore > 40 ? "#f9ab00" : "#ea4335" }}>
+                          {liveScore}%
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="subtitle2" sx={{ color: "#202124", fontSize: "0.85rem", mb: 0.5 }}>
+                        Score ATS en direct
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#5f6368" }}>
+                        {liveScore > 70 ? 'Excellente qualite - ton offre est bien structuree.' : liveScore > 40 ? 'Qualite moyenne - ajoute plus de details.' : 'Faible - ton offre manque de contenu ou de mots-cles.'}
+                      </Typography>
+                    </Box>
+                  </Box>
+                  {liveKeywords.length > 0 && (
+                    <Box sx={{ mt: 1.5 }}>
+                      <Typography variant="caption" sx={{ color: "#5f6368", mb: 0.5, display: "block" }}>
+                        Mots-cles detectes
+                      </Typography>
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                        {liveKeywords.map((kw, i) => (
+                          <Chip key={i} label={kw} size="small"
+                            sx={{ bgcolor: "#e8f0fe", color: "#1a73e8", fontSize: "0.7rem", height: 22 }} />
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Box>
+              )}
+            </Box>
+          </Box>
+          {/* Template Selector */}
+          <Box sx={{ px: { xs: 2, md: 3 }, py: 2, borderTop: '1px solid #e0e0e0' }}>
+            <Typography variant="subtitle2" sx={{ color: '#202124', mb: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+              <AutoAwesomeIcon sx={{ fontSize: 18, color: '#1a73e8' }} /> Style de CV
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexDirection: { xs: 'column', sm: 'row' } }}>
+              <Box onClick={() => { setSelectedTemplate('visual'); setStrictMode(false); }}
+                sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
+                  borderColor: selectedTemplate === 'visual' ? '#1a73e8' : '#dadce0',
+                  bgcolor: selectedTemplate === 'visual' ? '#e8f0fe' : '#fff',
+                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="h5" sx={{ lineHeight: 1 }}>🎨</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>Professionnel</Typography>
+                  {selectedTemplate === 'visual' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
+                </Box>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
+                  Design luxe/corporate - idéal pour recruteur humain
+                </Typography>
+              </Box>
+              <Box onClick={() => { setSelectedTemplate('ats'); setStrictMode(true); }}
+                sx={{ flex: 1, p: 2, borderRadius: 2, cursor: 'pointer', border: '2px solid',
+                  borderColor: selectedTemplate === 'ats' ? '#1a73e8' : '#dadce0',
+                  bgcolor: selectedTemplate === 'ats' ? '#e8f0fe' : '#fff',
+                  transition: 'all 0.2s', '&:hover': { borderColor: '#1a73e8', bgcolor: '#f1f3f4' },
+                }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
+                  <Typography variant="h5" sx={{ lineHeight: 1 }}>📄</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, color: '#202124' }}>ATS Strict</Typography>
+                  {selectedTemplate === 'ats' && <CheckCircleIcon sx={{ color: '#1a73e8', fontSize: 18, ml: 'auto' }} />}
+                </Box>
+                <Typography variant="caption" sx={{ color: '#5f6368', display: 'block' }}>
+                  Optimisé pour les ATS stricts (Workday, Taleo, iCIMS)
+                </Typography>
+              </Box>
             </Box>
           </Box>
           <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: '#f8f9fa', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
