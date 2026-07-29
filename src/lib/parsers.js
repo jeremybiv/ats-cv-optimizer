@@ -133,4 +133,4 @@ function parseJobDescription(jobText) {
   };
 }
 
-module.exports = { parseCVText, parseJobDescription };
+module.exports = { parseCVText, parseJobDescription, parseTextFromBase64: parseCVText };
