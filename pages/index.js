@@ -45,12 +45,13 @@ const pricingPlans = [
 
 export default function LandingPage() {
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Head>
         <title>ATS CV Optimizer - Optimise ton CV pour passer les ATS</title>
         <meta name="description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS (Workday, Taleo, iCIMS). Score ATS en temps reel, export PDF, partage recruteur." />
         <meta name="keywords" content="CV ATS, optimisation CV, score CV, ATS friendly, CV Workday, CV Taleo, CV en ligne, generateur CV, CV optimise ATS" />
         <meta name="robots" content="index, follow" />
+        <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
         <link rel="canonical" href="https://ats-cv-optimizer-delta.vercel.app" />
         <meta property="og:title" content="ATS CV Optimizer - Optimise ton CV pour passer les ATS" />
         <meta property="og:description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS." />
@@ -61,7 +62,7 @@ export default function LandingPage() {
         <meta name="twitter:description" content="Optimise ton CV pour passer les ATS en quelques secondes." />
       </Head>
       {/* Header */}
-      <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
+      <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', py: 1.5, px: { xs: 2, md: 4 } }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem', flex: 1 }}>
@@ -171,6 +172,44 @@ export default function LandingPage() {
         </Container>
       </Box>
 
+      {/* FAQ */}
+      <Box sx={{ bgcolor: '#fff', py: { xs: 6, md: 8 } }}>
+        <Container maxWidth="md">
+          <Typography variant="h4" sx={{ fontWeight: 500, color: '#202124', textAlign: 'center', mb: 6, fontSize: { xs: '1.5rem', md: '2rem' } }}>
+            Questions fréquentes
+          </Typography>
+          <Box sx={{ maxWidth: 768, mx: 'auto' }}>
+            {[
+              {
+                q: "Qu est-ce qu un CV compatible ATS ?",
+                a: "Un CV compatible ATS (Applicant Tracking System) est un CV formaté pour etre lu correctement par les logiciels de recrutement comme Workday, Taleo ou iCIMS. Il doit utiliser une structure lineaire, des polices standard, des sections aux intitulés classiques et integrer les mots-cles de l offre d emploi."
+              },
+              {
+                q: "Comment optimiser mon CV pour les ATS gratuitement ?",
+                a: "ATS CV Optimizer est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
+              },
+              {
+                q: "Quels sont les meilleurs formats de CV pour les ATS ?",
+                a: "Les meilleurs formats sont le HTML (recommande) et le DOCX. Le PDF est acceptable si genere depuis du texte. Evitez les images, les tableaux complexes et les colonnes multiples qui perturbent la lecture par les ATS."
+              },
+              {
+                q: "Quelle difference entre un template cv Professionnel et ATS Strict ?",
+                a: "Le template Professionnel offre un design luxe/corporate deux-colonnes ideal pour les recruteurs humains. Le template ATS Strict est une version une-colonne sans fioritures, optimisee pour les ATS stricts comme Workday et Taleo."
+              },
+            ].map((item, idx) => (
+              <Box key={idx} sx={{ mb: 2, p: 3, border: '1px solid #e0e0e0', borderRadius: 2, bgcolor: '#f8f9fa' }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, color: '#202124', mb: 1 }}>
+                  {item.q}
+                </Typography>
+                <Typography variant="body2" sx={{ color: '#5f6368' }}>
+                  {item.a}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Container>
+      </Box>
+
       {/* Contact */}
       <Box sx={{ py: { xs: 6, md: 8 }, textAlign: 'center' }}>
         <Container maxWidth="sm">
@@ -197,12 +236,73 @@ export default function LandingPage() {
             "@type": "Product",
             "name": "ATS CV Optimizer",
             "description": "Optimise ton CV pour passer les ATS",
+            "datePublished": "2026-07-30",
+            "dateModified": "2026-07-30",
             "offers": {
               "@type": "Offer",
               "price": "0",
               "priceCurrency": "EUR",
               "description": "Gratuit - 4 CV par mois"
             }
+          })
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Qu est-ce qu un CV compatible ATS ?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Un CV compatible ATS (Applicant Tracking System) est un CV formaté pour etre lu correctement par les logiciels de recrutement comme Workday, Taleo ou iCIMS. Il doit utiliser une structure lineaire, des polices standard, des sections aux intitulés classiques et integrer les mots-cles de l offre d emploi."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Comment optimiser mon CV pour les ATS gratuitement ?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "ATS CV Optimizer est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Quels sont les meilleurs formats de CV pour les ATS ?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Les meilleurs formats sont le HTML (recommande) et le DOCX. Le PDF est acceptable si genere depuis du texte. Evitez les images, les tableaux complexes et les colonnes multiples qui perturbent la lecture par les ATS."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Quelle difference entre un template cv Professionnel et ATS Strict ?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Le template Professionnel offre un design luxe/corporate deux-colonnes ideal pour les recruteurs humains. Le template ATS Strict est une version une-colonne sans fioritures, optimisee pour les ATS stricts comme Workday et Taleo."
+                }
+              }
+            ]
+          })
+        }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "HowTo",
+            "name": "Comment optimiser son CV pour les ATS",
+            "step": [
+              {"@type": "HowToStep", "position": 1, "name": "Importe ton CV", "text": "Upload ton CV au format PDF ou importe ton profil LinkedIn."},
+              {"@type": "HowToStep", "position": 2, "name": "Colle l offre d emploi", "text": "Copie le lien ou le texte de l offre a laquelle tu postules."},
+              {"@type": "HowToStep", "position": 3, "name": "Choisis ton template", "text": "Selectionne Professionnel (pour humain) ou ATS Strict (pour les ATS)."},
+              {"@type": "HowToStep", "position": 4, "name": "Optimise et telecharge", "text": "Obtiens ton CV optimise avec score ATS, exporte en PDF ou Word, et partage-le avec les recruteurs."}
+            ]
           })
         }}
       />

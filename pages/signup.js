@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
-import { Container, Box, Typography, TextField, Button, Paper, Alert } from '@mui/material';
+import { Container, Box, Typography, TextField, Button, Paper, Alert, Checkbox, FormControlLabel } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 export default function Signup() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [newsletter, setNewsletter] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,14 @@ export default function Signup() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setSuccess(true);
+      // Subscribe to newsletter if checked — non-blocking
+      if (newsletter) {
+        fetch('/api/newsletter', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        }).catch(() => {});
+      }
       setTimeout(() => router.push('/login'), 1500);
     } catch (err) {
       setError(err.message);
@@ -51,6 +60,11 @@ export default function Signup() {
                 onChange={(e) => setEmail(e.target.value)} sx={{ mb: 2 }} required />
               <TextField fullWidth size="small" label="Mot de passe (6+ caractères)" type="password" value={password}
                 onChange={(e) => setPassword(e.target.value)} sx={{ mb: 2 }} required />
+              <FormControlLabel
+                control={<Checkbox checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />}
+                label="Recevoir la newsletter et des conseils pour optimiser mes CV"
+                sx={{ mb: 2, alignItems: 'flex-start' }}
+              />
               {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
               <Button fullWidth variant="contained" type="submit" disabled={loading}
                 sx={{ borderRadius: '28px', textTransform: 'none', bgcolor: '#1a73e8', py: 1.2 }}>
