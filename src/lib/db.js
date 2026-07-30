@@ -55,6 +55,48 @@ export async function createUser({ email, password, name }) {
   }
 }
 
+// ── CV HISTORY ──────────────────────────
+
+export async function saveGeneratedCV({ userId, jobTitle, company, templateUsed, html, score }) {
+  await initDB();
+  try {
+    await sql`
+      INSERT INTO generated_cvs (user_id, job_title, company, template_used, html, score)
+      VALUES (${userId}, ${jobTitle || ''}, ${company || ''}, ${templateUsed || 'visual'}, ${html || ''}, ${score || 0})
+    `;
+    return true;
+  } catch (e) {
+    console.error('[DB] saveGeneratedCV error:', e.message);
+    return false;
+  }
+}
+
+export async function getUserGeneratedCVs(userId) {
+  await initDB();
+  try {
+    const { rows } = await sql`
+      SELECT id, job_title, company, template_used, score, created_at
+      FROM generated_cvs WHERE user_id = ${userId}
+      ORDER BY created_at DESC LIMIT 20
+    `;
+    return rows;
+  } catch {
+    return [];
+  }
+}
+
+export async function getGeneratedCVById(id) {
+  await initDB();
+  try {
+    const { rows } = await sql`
+      SELECT * FROM generated_cvs WHERE id = ${id}
+    `;
+    return rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 export async function createSharedCV({ html, email = null, name = null }) {
   const id = crypto.randomUUID();
   await sql`
