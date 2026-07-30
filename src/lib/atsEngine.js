@@ -143,8 +143,8 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   const education = parsedCV?.education || [];
   const existingSkills = parsedCV?.skills || [];
   const allSkills = [...new Set([...existingSkills, ...(jobKeywords?.technical || []), ...(jobKeywords?.soft || [])])];
-  const keywordSet = new Set((jobKeywords?.all || []).map(k => k.toLowerCase()));
-  const prioritizedSkills = [...allSkills.filter(s => keywordSet.has(s.toLowerCase())), ...allSkills.filter(s => !keywordSet.has(s.toLowerCase()))];
+  const keywordSet = new Set((jobKeywords?.all || []).filter(k => typeof k === 'string').map(k => k.toLowerCase()));
+  const prioritizedSkills = [...allSkills.filter(s => typeof s === 'string' ? keywordSet.has(s.toLowerCase()) : false), ...allSkills.filter(s => !(typeof s === 'string' ? keywordSet.has(s.toLowerCase()) : false))];
   const metaKeywords = (jobKeywords?.all || []).slice(0, 20).join(', ');
   const summaryKw = (jobKeywords?.technical || []).slice(0, 3).join(', ');
   const summaryText = summary || ('Professionnel(le) qualifie(e) avec expertise en ' + (summaryKw || 'developpement et technologies') + '.');
@@ -188,6 +188,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   function buildSkillsHTML() {
     if (prioritizedSkills.length > 0) {
       return prioritizedSkills.map(function(s) {
+        if (typeof s !== 'string') return '';
         var cls = keywordSet.has(s.toLowerCase()) ? 'pill dark' : 'pill light';
         return '<span class="' + cls + '">' + s.charAt(0).toUpperCase() + s.slice(1) + '</span>';
       }).join(' ');
