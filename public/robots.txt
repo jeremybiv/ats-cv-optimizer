@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://ats-cv-optimizer-delta.vercel.app/sitemap.xml
