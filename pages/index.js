@@ -2,6 +2,7 @@ import { Container, Box, Typography, Button, Card, CardContent, Grid, Link as Mu
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Link from 'next/link';
 import Head from 'next/head';
+import { useState } from 'react';
 
 const features = [
   {
@@ -39,12 +40,27 @@ const pricingPlans = [
     price: '7.90€/mois',
     desc: 'CV illimités',
     badge: 'Populaire',
-    cta: 'Essayer',
-    href: '/app',
+    cta: 'S\'abonner',
+    href: null,
   },
 ];
 
 export default function LandingPage() {
+  const [loading, setLoading] = useState(null);
+
+  const handleStripeCheckout = async (planIdx) => {
+    setLoading(planIdx);
+    try {
+      const res = await fetch('/api/create-checkout', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert('Erreur: ' + (data.error || 'Impossible de créer la session'));
+    } catch (err) {
+      alert('Erreur de connexion au serveur');
+    } finally {
+      setLoading(null);
+    }
+  };
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Head>
@@ -160,11 +176,23 @@ export default function LandingPage() {
                     <Typography variant="body2" sx={{ color: '#5f6368', mb: 3 }}>
                       {plan.desc}
                     </Typography>
-                    <Link href={plan.href} passHref legacyBehavior>
-                      <Button variant={i === 1 ? 'contained' : 'outlined'} fullWidth sx={{ borderRadius: '20px', textTransform: 'none', borderColor: i === 1 ? undefined : '#dadce0', color: i === 1 ? '#fff' : '#202124', bgcolor: i === 1 ? '#1a73e8' : 'transparent' }}>
-                        {plan.cta}
+                    {plan.href ? (
+                      <Link href={plan.href} passHref legacyBehavior>
+                        <Button variant={i === 1 ? 'contained' : 'outlined'} fullWidth sx={{ borderRadius: '20px', textTransform: 'none', borderColor: i === 1 ? undefined : '#dadce0', color: i === 1 ? '#fff' : '#202124', bgcolor: i === 1 ? '#1a73e8' : 'transparent' }}>
+                          {plan.cta}
+                        </Button>
+                      </Link>
+                    ) : (
+                      <Button
+                        variant={i === 1 ? 'contained' : 'outlined'}
+                        fullWidth
+                        disabled={loading === i}
+                        onClick={() => handleStripeCheckout(i)}
+                        sx={{ borderRadius: '20px', textTransform: 'none', borderColor: i === 1 ? undefined : '#dadce0', color: i === 1 ? '#fff' : '#202124', bgcolor: i === 1 ? '#1a73e8' : 'transparent' }}
+                      >
+                        {loading === i ? 'Redirection...' : plan.cta}
                       </Button>
-                    </Link>
+                    )}
                   </CardContent>
                 </Card>
               </Grid>
