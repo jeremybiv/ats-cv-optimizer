@@ -30,14 +30,15 @@ const pricingPlans = [
   {
     name: 'Gratuit',
     price: '0€',
-    desc: '4 CV par mois',
+    desc: '3 CV par mois',
     cta: 'Commencer',
     href: '/app',
   },
   {
-    name: 'Pro',
-    price: '1€/CV',
+    name: 'Illimité',
+    price: '7.90€/mois',
     desc: 'CV illimités',
+    badge: 'Populaire',
     cta: 'Essayer',
     href: '/app',
   },
@@ -238,12 +239,17 @@ export default function LandingPage() {
             "description": "Optimise ton CV pour passer les ATS",
             "datePublished": "2026-07-30",
             "dateModified": "2026-07-30",
-            "offers": {
+            "offers": [{
               "@type": "Offer",
               "price": "0",
               "priceCurrency": "EUR",
-              "description": "Gratuit - 4 CV par mois"
-            }
+              "description": "Gratuit - 3 CV par mois"
+            }, {
+              "@type": "Offer",
+              "price": "7.90",
+              "priceCurrency": "EUR",
+              "description": "Illimite - 7.90€/mois"
+            }]
           })
         }}
       />
