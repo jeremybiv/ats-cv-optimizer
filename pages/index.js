@@ -1,6 +1,7 @@
 import { Container, Box, Typography, Button, Card, CardContent, Grid, Link as MuiLink } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Link from 'next/link';
+import Head from 'next/head';
 
 const features = [
   {
@@ -45,6 +46,20 @@ const pricingPlans = [
 export default function LandingPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      <Head>
+        <title>ATS CV Optimizer - Optimise ton CV pour passer les ATS</title>
+        <meta name="description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS (Workday, Taleo, iCIMS). Score ATS en temps reel, export PDF, partage recruteur." />
+        <meta name="keywords" content="CV ATS, optimisation CV, score CV, ATS friendly, CV Workday, CV Taleo, CV en ligne, generateur CV, CV optimise ATS" />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href="https://ats-cv-optimizer-delta.vercel.app" />
+        <meta property="og:title" content="ATS CV Optimizer - Optimise ton CV pour passer les ATS" />
+        <meta property="og:description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://ats-cv-optimizer-delta.vercel.app" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="ATS CV Optimizer" />
+        <meta name="twitter:description" content="Optimise ton CV pour passer les ATS en quelques secondes." />
+      </Head>
       {/* Header */}
       <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -174,6 +189,23 @@ export default function LandingPage() {
           Propulsé par Prospimmo
         </Typography>
       </Box>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Product",
+            "name": "ATS CV Optimizer",
+            "description": "Optimise ton CV pour passer les ATS",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "EUR",
+              "description": "Gratuit - 4 CV par mois"
+            }
+          })
+        }}
+      />
     </Box>
   );
 }
