@@ -17,6 +17,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import HistoryIcon from '@mui/icons-material/History';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -42,6 +43,10 @@ export default function Home() {
   const [shareLink, setShareLink] = useState(null);
   const [shareSnackbar, setShareSnackbar] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -184,6 +189,20 @@ export default function Home() {
         throw new Error(data.error || 'Erreur serveur');
       }
       setStep(2);
+      // Sauvegarde automatique dans l'historique (fire and forget)
+      if (session?.user) {
+        fetch('/api/history', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jobTitle: '',
+            company: '',
+            templateUsed: strictMode ? 'strict' : 'visual',
+            html: data.html,
+            score: data.matchScore || null,
+          }),
+        }).catch(() => {});
+      }
       setResult(data);
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
@@ -282,6 +301,44 @@ export default function Home() {
     }
   };
 
+  const handleOpenHistory = async () => {
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors du chargement de l'historique");
+      setHistoryList(data.cvs || []);
+    } catch (err) {
+      setHistoryError(err.message);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRestoreHistory = async (id) => {
+    try {
+      const res = await fetch(`/api/history/${id}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la restauration');
+      const cv = data.cv;
+      setResult({
+        html: cv.html || '',
+        matchScore: cv.score || 0,
+        keywordCount: 0,
+        missingCount: 0,
+        structureScore: 0,
+        keywords: [],
+        fromHistory: true,
+      });
+      setHistoryOpen(false);
+      setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } catch (err) {
+      setHistoryError(err.message);
+    }
+  };
+
   // Build a readable profile summary
   const linkedinProfilePreview = linkedinData ? (
     <Box sx={{ mt: 1.5, p: 1.5, bgcolor: '#e8f0fe', borderRadius: 2, border: '1px solid #b3d4fc' }}>
@@ -332,6 +389,12 @@ export default function Home() {
             <Typography variant="caption" sx={{ color: '#5f6368', display: { xs: 'none', sm: 'block' } }}>
               {session?.user?.email}
             </Typography>
+            {session && (
+              <Button size="small" variant="text" onClick={handleOpenHistory} startIcon={<HistoryIcon />}
+                sx={{ color: '#5f6368', textTransform: 'none', fontSize: '0.8rem' }}>
+                Historique
+              </Button>
+            )}
             <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
               <Avatar sx={{ width: 28, height: 28, bgcolor: '#1a73e8', fontSize: '0.8rem' }}>
                 {session?.user?.email?.[0]?.toUpperCase() || 'U'}
@@ -690,6 +753,52 @@ export default function Home() {
           </Typography>
         </Box>
       </Container>
+
+      {/* History Dialog */}
+      <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500 }}>
+          <HistoryIcon sx={{ verticalAlign: 'middle', mr: 1, color: '#1a73e8' }} />
+          Historique des CV générés
+        </DialogTitle>
+        <DialogContent dividers>
+          {historyLoading && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress />
+            </Box>
+          )}
+          {historyError && <Alert severity="error" sx={{ borderRadius: 2, mb: 1 }}>{historyError}</Alert>}
+          {!historyLoading && !historyError && historyList.length === 0 && (
+            <Typography variant="body2" sx={{ color: '#9aa0a6', py: 2 }}>
+              Aucun CV sauvegardé pour le moment.
+            </Typography>
+          )}
+          {!historyLoading && historyList.map((cv) => (
+            <Box key={cv.id} onClick={() => handleRestoreHistory(cv.id)}
+              sx={{
+                display: 'flex', alignItems: 'center', gap: 1.5, p: 1.5, mb: 1, cursor: 'pointer',
+                border: '1px solid #e0e0e0', borderRadius: 2, '&:hover': { bgcolor: '#f1f3f4' },
+              }}>
+              <ArticleIcon sx={{ color: '#1a73e8', fontSize: 22 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: '#202124' }}>
+                  {cv.job_title || 'CV sans titre'}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#5f6368' }}>
+                  {cv.created_at ? new Date(cv.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}
+                  {cv.template_used ? ` · ${cv.template_used}` : ''}
+                </Typography>
+              </Box>
+              <Chip label={`${cv.score || 0}%`} size="small"
+                sx={{ bgcolor: '#e8f0fe', color: '#1a73e8', fontWeight: 600 }} />
+            </Box>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setHistoryOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Share Success Dialog */}
       <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
