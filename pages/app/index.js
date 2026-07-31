@@ -17,6 +17,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import DescriptionIcon from '@mui/icons-material/Description';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -279,6 +280,57 @@ export default function Home() {
       }
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération PDF');
+    }
+  };
+
+  const handleDownloadWord = () => {
+    if (!result?.html) return;
+    try {
+      // Wrap the optimized CV HTML with Microsoft Word XML headers so Word
+      // opens it as a native .doc document instead of raw HTML.
+      const wordHtml = `<!DOCTYPE html>
+<html xmlns:o="urn:schemas-microsoft-com:office:office"
+      xmlns:w="urn:schemas-microsoft-com:office:word"
+      xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<title>CV optimisé ATS</title>
+<!--[if gte mso 9]><xml>
+<w:WordDocument>
+<w:View>Print</w:View>
+<w:Zoom>100</w:Zoom>
+<w:DoNotOptimizeForBrowser/>
+</w:WordDocument>
+</xml><![endif]-->
+</head>
+<body>
+${result.html}
+</body>
+</html>`;
+      const blob = new Blob(['\ufeff', wordHtml], { type: 'application/msword' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cv_optimise_ats.doc';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      // Fallback : télécharge le HTML brut en .doc
+      try {
+        const blob = new Blob(['\ufeff', result.html], { type: 'application/msword' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'cv_optimise_ats.doc';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (err2) {
+        setError(err2.message || 'Erreur lors du téléchargement Word');
+      }
     }
   };
 
@@ -667,6 +719,10 @@ export default function Home() {
                 <Button variant="outlined" onClick={handleDownloadPDF} startIcon={<PictureAsPdfIcon />}
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
                   Télécharger PDF
+                </Button>
+                <Button variant="outlined" onClick={handleDownloadWord} startIcon={<DescriptionIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#2b579a' }}>
+                  Télécharger Word
                 </Button>
               </Box>
             </Paper>
