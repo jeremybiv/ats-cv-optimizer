@@ -1,12 +1,30 @@
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../src/lib/auth';
 import { extractJobDescription } from '../../src/lib/jobFetcher';
 import { parseTextFromBase64 } from '../../src/lib/parsers';
 import { extractKeywords, scoreCV, generateOptimizedCV, formatCVHTML } from '../../src/lib/atsEngine';
+import { findUserByEmail, getUserUsage, incrementUsage } from '../../src/lib/db';
 
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
+
+const FREE_PLAN_MONTHLY_LIMIT = 3;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
+    // ── Subscription quota check (free plan: 3 CV/month, Illimité: unlimited) ──
+    const session = await getServerSession(req, res, authOptions);
+    if (session?.user?.id) {
+      const user = await findUserByEmail(session.user.email);
+      const isUnlimited = user?.subscription_status === 'active';
+      if (!isUnlimited) {
+        const usage = await getUserUsage(session.user.id);
+        if (usage >= FREE_PLAN_MONTHLY_LIMIT) {
+          return res.status(402).json({ error: 'Quota gratuit atteint - passe à l abonnement Illimité' });
+        }
+      }
+    }
+
     const { cvBase64, jobUrl, jobText, strictMode, cvText: directCvText, linkedinData } = req.body;
     let jd = jobText;
     if (jobUrl && !jd) jd = await extractJobDescription(jobUrl);
@@ -66,6 +84,11 @@ export default async function handler(req, res) {
 
     const optimizedHTML = generateOptimizedCV({ cvText, job: jobP, jobKeywords: keywords, parsedCV, strictMode });
     const finalHTML = formatCVHTML(optimizedHTML, keywords);
+
+    // ── Count this generation toward the monthly usage quota ──
+    if (session?.user?.id) {
+      await incrementUsage(session.user.id);
+    }
 
     res.json({
       html: finalHTML,
