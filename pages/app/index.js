@@ -30,6 +30,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [step, setStep] = useState(0);
   const [copied, setCopied] = useState(false);
   const [liveScore, setLiveScore] = useState(null);
@@ -156,7 +158,7 @@ export default function Home() {
     const hasLinkedin = !!linkedinData || (showManualInput && linkedinManualText.trim().length > 20);
     if (!hasCv && !hasLinkedin && !jobUrl && !jobText) return;
     
-    setLoading(true); setError(null); setResult(null); setStep(0);
+    setLoading(true); setError(null); setQuotaExceeded(false); setResult(null); setStep(0);
     try {
       const body = { jobUrl: jobUrl || undefined, jobText: jobText || undefined, strictMode };
       
@@ -174,7 +176,13 @@ export default function Home() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Erreur serveur');
+      if (!res.ok) {
+        if (res.status === 402) {
+          setQuotaExceeded(true);
+          return;
+        }
+        throw new Error(data.error || 'Erreur serveur');
+      }
       setStep(2);
       setResult(data);
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -182,6 +190,20 @@ export default function Home() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpgrade = async () => {
+    setUpgradeLoading(true);
+    try {
+      const res = await fetch('/api/create-checkout', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else throw new Error(data.error || 'Erreur lors de la création de la session');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUpgradeLoading(false);
     }
   };
 
@@ -193,7 +215,7 @@ export default function Home() {
 
   const handleReset = () => {
     setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
-    setError(null); setStep(0);
+    setError(null); setQuotaExceeded(false); setStep(0);
     setLinkedinUrl(''); setLinkedinData(null); setLinkedinManualText('');
     setShowManualInput(false); setLinkedinError(null);
   };
@@ -566,6 +588,16 @@ export default function Home() {
               <Chip label="✨ Génération HTML" size="small" color={step >= 2 ? 'primary' : 'default'} variant={step >= 2 ? 'filled' : 'outlined'} />
             </Box>
           </Box>
+        )}
+
+        {quotaExceeded && (
+          <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }} action={
+            <Button color="inherit" size="small" onClick={handleUpgrade} disabled={upgradeLoading} sx={{ fontWeight: 600 }}>
+              {upgradeLoading ? 'Redirection...' : 'Passer à Illimité 7.90€/mois'}
+            </Button>
+          }>
+            Quota gratuit atteint : 3 CV/mois maximum. Passe à Illimité pour générer des CV sans limite.
+          </Alert>
         )}
 
         {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}

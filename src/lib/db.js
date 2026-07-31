@@ -29,6 +29,12 @@ export async function initDB() {
       name VARCHAR(255),
       created_at TIMESTAMP DEFAULT NOW()
     )`;
+    await sql`CREATE TABLE IF NOT EXISTS usage_cv (
+      user_id INTEGER REFERENCES users(id),
+      month TEXT,
+      count INTEGER DEFAULT 0,
+      PRIMARY KEY (user_id, month)
+    )`;
     return true;
   } catch (e) {
     console.error('[DB] Init error:', e.message);
@@ -88,6 +94,43 @@ export async function setUserSubscription({ email, status, stripeCustomerId = nu
   } catch (e) {
     console.error('[DB] setUserSubscription error:', e.message);
     return null;
+  }
+}
+
+// ── USAGE QUOTA (free plan: 3 CV/month) ───────
+// ── USAGE QUOTA (free plan: 3 CV/month) ───────
+
+export function currentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+export async function getUserUsage(userId) {
+  await initDB();
+  try {
+    const month = currentMonth();
+    const { rows } = await sql`SELECT count FROM usage_cv WHERE user_id = ${userId} AND month = ${month}`;
+    return rows[0]?.count || 0;
+  } catch (e) {
+    console.error('[DB] getUserUsage error:', e.message);
+    return 0;
+  }
+}
+
+export async function incrementUsage(userId) {
+  await initDB();
+  try {
+    const month = currentMonth();
+    await sql`
+      INSERT INTO usage_cv (user_id, month, count)
+      VALUES (${userId}, ${month}, 1)
+      ON CONFLICT (user_id, month) DO UPDATE SET count = usage_cv.count + 1
+    `;
+    return true;
+  } catch (e) {
+    console.error('[DB] incrementUsage error:', e.message);
+    return false;
+
   }
 }
 
