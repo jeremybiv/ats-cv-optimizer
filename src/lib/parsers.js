@@ -133,4 +133,33 @@ function parseJobDescription(jobText) {
   };
 }
 
-module.exports = { parseCVText, parseJobDescription, parseTextFromBase64: parseCVText };
+/**
+ * Extract text from a base64-encoded PDF using pdfjs-dist
+ * @param {string} base64 - Base64-encoded PDF
+ * @returns {Promise<string>} Extracted text
+ */
+async function parseTextFromBase64(base64) {
+  if (!base64) return '';
+  try {
+    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    const buffer = Buffer.from(base64, 'base64');
+    const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
+    let text = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      text += content.items.map(item => item.str || '').join(' ') + '\n';
+    }
+    return text;
+  } catch (e) {
+    console.error('[parsers] PDF parse error:', e.message);
+    // Fallback: try to decode base64 as plain text
+    try {
+      return Buffer.from(base64, 'base64').toString('utf-8');
+    } catch {
+      return '';
+    }
+  }
+}
+
+module.exports = { parseCVText, parseJobDescription, parseTextFromBase64 };
