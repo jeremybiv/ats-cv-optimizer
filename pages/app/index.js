@@ -4,7 +4,7 @@ import {
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
   Card, CircularProgress, Divider, Avatar, Menu, MenuItem, Dialog,
-  DialogTitle, DialogContent, DialogActions
+  DialogTitle, DialogContent, DialogActions, Accordion, AccordionSummary, AccordionDetails
 } from '@mui/material';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import SearchIcon from '@mui/icons-material/Search';
@@ -17,6 +17,8 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -42,6 +44,11 @@ export default function Home() {
   const [shareLink, setShareLink] = useState(null);
   const [shareSnackbar, setShareSnackbar] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [interviewOpen, setInterviewOpen] = useState(false);
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [interviewQuestions, setInterviewQuestions] = useState([]);
+  const [interviewError, setInterviewError] = useState(null);
+  const [cvOriginalText, setCvOriginalText] = useState('');
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -185,6 +192,22 @@ export default function Home() {
       }
       setStep(2);
       setResult(data);
+      // Stocke le texte CV dispo côté client pour la préparation d'entretien
+      if (linkedinData) {
+        const parts = [];
+        if (linkedinData.summary) parts.push(linkedinData.summary);
+        if (linkedinData.skills && linkedinData.skills.length > 0) parts.push('Skills: ' + linkedinData.skills.join(', '));
+        if (linkedinData.experience && linkedinData.experience.length > 0) {
+          linkedinData.experience.forEach(exp => {
+            const line = [exp.title, exp.company, exp.dates].filter(Boolean).join(' - ');
+            if (line) parts.push(line);
+            if (exp.description && exp.description.length > 0) parts.push(exp.description.join('. '));
+          });
+        }
+        setCvOriginalText(parts.join('\n'));
+      } else if (showManualInput && linkedinManualText.trim().length > 20) {
+        setCvOriginalText(linkedinManualText);
+      }
       setTimeout(() => resultRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
     } catch (err) {
       setError(err.message);
@@ -279,6 +302,43 @@ export default function Home() {
       }
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération PDF');
+    }
+  };
+
+  const interviewTypeColor = (type) => {
+    const map = {
+      technique: { bgcolor: '#e8f0fe', color: '#1a73e8' },
+      comportemental: { bgcolor: '#f3e8fd', color: '#7b1fa2' },
+      motivation: { bgcolor: '#e6f4ea', color: '#1e7d32' },
+      gap: { bgcolor: '#fce8e6', color: '#d93025' },
+    };
+    return map[type] || { bgcolor: '#f1f3f4', color: '#5f6368' };
+  };
+
+  const handleInterviewPrep = async () => {
+    if (!result) return;
+    setInterviewOpen(true);
+    setInterviewLoading(true);
+    setInterviewError(null);
+    setInterviewQuestions([]);
+    try {
+      const cvText = result.cvText || cvOriginalText || '';
+      if (!cvText.trim() || !jobText.trim()) {
+        setInterviewError("Colle le texte de ton CV et celui de l'offre d'emploi pour générer les questions.");
+        return;
+      }
+      const res = await fetch('/api/interview-prep', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cvText, jobText }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la génération des questions');
+      setInterviewQuestions(data.questions || []);
+    } catch (err) {
+      setInterviewError(err.message);
+    } finally {
+      setInterviewLoading(false);
     }
   };
 
@@ -664,6 +724,10 @@ export default function Home() {
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
                   {shareLoading ? 'Partage...' : 'Partager'}
                 </Button>
+                <Button variant="outlined" onClick={handleInterviewPrep} startIcon={<RecordVoiceOverIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#7b1fa2' }}>
+                  Préparer ton entretien
+                </Button>
                 <Button variant="outlined" onClick={handleDownloadPDF} startIcon={<PictureAsPdfIcon />}
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
                   Télécharger PDF
@@ -690,6 +754,55 @@ export default function Home() {
           </Typography>
         </Box>
       </Container>
+
+      {/* Interview Prep Dialog */}
+      <Dialog open={interviewOpen} onClose={() => setInterviewOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500 }}>
+          <RecordVoiceOverIcon sx={{ verticalAlign: 'middle', mr: 1, color: '#7b1fa2' }} />
+          Préparer ton entretien
+        </DialogTitle>
+        <DialogContent dividers>
+          {interviewLoading && (
+            <Box sx={{ textAlign: 'center', py: 4 }}>
+              <CircularProgress />
+              <Typography variant="body2" sx={{ color: '#5f6368', mt: 2 }}>
+                Génération des questions d'entretien en cours...
+              </Typography>
+            </Box>
+          )}
+          {interviewError && <Alert severity="error" sx={{ borderRadius: 2, mb: 1 }}>{interviewError}</Alert>}
+          {!interviewLoading && !interviewError && interviewQuestions.length === 0 && (
+            <Typography variant="body2" sx={{ color: '#9aa0a6', py: 2 }}>
+              Les questions générées à partir de ton CV et de l'offre apparaîtront ici.
+            </Typography>
+          )}
+          {!interviewLoading && interviewQuestions.map((q, i) => (
+            <Accordion key={i} disableGutters sx={{
+              mb: 1, border: '1px solid #e0e0e0', borderRadius: 2, boxShadow: 'none',
+              '&:before': { display: 'none' },
+            }}>
+              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ borderRadius: 2 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: '#202124' }}>
+                    {i + 1}. {q.question}
+                  </Typography>
+                  <Chip label={q.type} size="small" sx={{ ...interviewTypeColor(q.type), fontSize: '0.7rem', height: 22 }} />
+                </Box>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Typography variant="body2" sx={{ color: '#5f6368' }}>
+                  <strong style={{ color: '#202124' }}>Conseil :</strong> {q.conseil}
+                </Typography>
+              </AccordionDetails>
+            </Accordion>
+          ))}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setInterviewOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Share Success Dialog */}
       <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
