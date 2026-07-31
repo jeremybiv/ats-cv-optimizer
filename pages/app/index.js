@@ -17,6 +17,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
 import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
+import CompareArrowsIcon from '@mui/icons-material/CompareArrows';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
 
@@ -42,6 +43,8 @@ export default function Home() {
   const [shareLink, setShareLink] = useState(null);
   const [shareSnackbar, setShareSnackbar] = useState(false);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [originalCvText, setOriginalCvText] = useState('');
+  const [compareOpen, setCompareOpen] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -170,6 +173,30 @@ export default function Home() {
         body.cvText = linkedinManualText;
       }
       
+      // Stocke le texte original du CV pour la comparaison avant/après
+      let originalCv = '';
+      if (cvFile) {
+        originalCv = ''; // PDF : le texte est extrait côté serveur
+      } else if (linkedinData) {
+        const parts = [];
+        if (linkedinData.summary) parts.push(linkedinData.summary);
+        if (linkedinData.skills && linkedinData.skills.length > 0) {
+          parts.push('Skills: ' + linkedinData.skills.join(', '));
+        }
+        if (linkedinData.experience && linkedinData.experience.length > 0) {
+          linkedinData.experience.forEach(exp => {
+            const line = [exp.title, exp.company, exp.dates].filter(Boolean).join(' - ');
+            if (line) parts.push(line);
+            if (exp.description && exp.description.length > 0) {
+              parts.push(exp.description.join('. '));
+            }
+          });
+        }
+        originalCv = parts.join('\n');
+      } else if (showManualInput && linkedinManualText.trim().length > 20) {
+        originalCv = linkedinManualText;
+      }
+      setOriginalCvText(originalCv);
       setStep(1);
       const res = await fetch('/api/optimize', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -217,7 +244,7 @@ export default function Home() {
     setCvFile(null); setJobUrl(''); setJobText(''); setResult(null);
     setError(null); setQuotaExceeded(false); setStep(0);
     setLinkedinUrl(''); setLinkedinData(null); setLinkedinManualText('');
-    setShowManualInput(false); setLinkedinError(null);
+    setShowManualInput(false); setLinkedinError(null); setOriginalCvText('');
   };
 
   const handleShare = async () => {
@@ -280,6 +307,73 @@ export default function Home() {
     } catch (err) {
       setError(err.message || 'Erreur lors de la génération PDF');
     }
+  };
+
+  const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  // Surligne les mots-clés dans un texte brut (colonne « avant »)
+  const renderHighlightedText = (text, keywords, style) => {
+    if (!text) return null;
+    const valid = (keywords || []).map(k => (k || '').trim()).filter(Boolean);
+    if (!valid.length) return text;
+    const regex = new RegExp(`(${valid.map(escapeRegExp).join('|')})`, 'gi');
+    const parts = text.split(regex);
+    const lower = valid.map(k => k.toLowerCase());
+    return parts.map((part, i) =>
+      part && lower.includes(part.toLowerCase())
+        ? <span key={i} style={style}>{part}</span>
+        : part
+    );
+  };
+
+  // Surligne les mots-clés en vert dans le DOM de l'aperçu (colonne « après »)
+  const highlightCompareHtml = (e) => {
+    try {
+      const doc = e.target.contentDocument;
+      if (!doc || !doc.body) return;
+      const keywords = (result?.keywords || []).map(k => (k || '').toLowerCase()).filter(k => k.length > 0);
+      if (!keywords.length) return;
+      const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      textNodes.forEach(node => {
+        const text = node.nodeValue || '';
+        if (!text.trim()) return;
+        const lower = text.toLowerCase();
+        const matches = [];
+        keywords.forEach(kw => {
+          let idx = lower.indexOf(kw);
+          while (idx !== -1) {
+            matches.push({ start: idx, end: idx + kw.length });
+            idx = lower.indexOf(kw, idx + 1);
+          }
+        });
+        if (!matches.length) return;
+        matches.sort((a, b) => a.start - b.start);
+        const merged = [];
+        matches.forEach(m => {
+          const last = merged[merged.length - 1];
+          if (last && m.start <= last.end) last.end = Math.max(last.end, m.end);
+          else merged.push({ start: m.start, end: m.end });
+        });
+        const frag = doc.createDocumentFragment();
+        let cursor = 0;
+        merged.forEach(m => {
+          if (m.start > cursor) frag.appendChild(doc.createTextNode(text.slice(cursor, m.start)));
+          const mark = doc.createElement('mark');
+          mark.style.backgroundColor = '#d7f5d7';
+          mark.style.color = '#1e7d32';
+          mark.style.fontWeight = '600';
+          mark.style.padding = '0 1px';
+          mark.style.borderRadius = '2px';
+          mark.textContent = text.slice(m.start, m.end);
+          frag.appendChild(mark);
+          cursor = m.end;
+        });
+        if (cursor < text.length) frag.appendChild(doc.createTextNode(text.slice(cursor)));
+        node.parentNode.replaceChild(frag, node);
+      });
+    } catch (err) { /* ignore */ }
   };
 
   // Build a readable profile summary
@@ -668,6 +762,10 @@ export default function Home() {
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#d93025' }}>
                   Télécharger PDF
                 </Button>
+                <Button variant="outlined" onClick={() => setCompareOpen(true)} startIcon={<CompareArrowsIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
+                  Comparer avant/après
+                </Button>
               </Box>
             </Paper>
             <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
@@ -690,6 +788,57 @@ export default function Home() {
           </Typography>
         </Box>
       </Container>
+
+      {/* Before/After Compare Dialog */}
+      <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500 }}>
+          <CompareArrowsIcon sx={{ verticalAlign: 'middle', mr: 1, color: '#1a73e8' }} />
+          Comparer avant / après
+        </DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2}>
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: '#d93025', fontWeight: 600 }}>
+                Avant — CV original
+              </Typography>
+              <Box sx={{
+                bgcolor: '#f8f9fa', border: '1px solid #e0e0e0', borderRadius: 2, p: 2,
+                maxHeight: 500, overflow: 'auto', whiteSpace: 'pre-wrap',
+                fontSize: '0.85rem', fontFamily: 'Roboto, sans-serif', lineHeight: 1.6,
+              }}>
+                {originalCvText ? renderHighlightedText(originalCvText, result?.keywords, {
+                  backgroundColor: '#fce8e6', color: '#d93025',
+                  textDecoration: 'line-through', fontWeight: 600, borderRadius: 2, padding: '0 1px',
+                }) : (
+                  <Typography variant="body2" sx={{ color: '#9aa0a6' }}>
+                    Texte original indisponible (CV importé en PDF — le texte est extrait côté serveur).
+                  </Typography>
+                )}
+              </Box>
+              <Typography variant="caption" sx={{ color: '#9aa0a6', display: 'block', mt: 1 }}>
+                Mots-clés manquants barrés en rouge
+              </Typography>
+            </Grid>
+            <Grid item xs={12} md={6}>
+              <Typography variant="subtitle2" sx={{ mb: 1, color: '#1e7d32', fontWeight: 600 }}>
+                Après — CV optimisé
+              </Typography>
+              <Box sx={{ border: '1px solid #e0e0e0', borderRadius: 2, overflow: 'hidden', bgcolor: '#fff' }}>
+                <iframe srcDoc={result?.html || ''} onLoad={highlightCompareHtml}
+                  style={{ width: '100%', height: 500, border: 'none' }} title="CV optimisé (comparaison)" />
+              </Box>
+              <Typography variant="caption" sx={{ color: '#9aa0a6', display: 'block', mt: 1 }}>
+                Mots-clés présents surlignés en vert
+              </Typography>
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCompareOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Share Success Dialog */}
       <Dialog open={shareDialogOpen} onClose={() => setShareDialogOpen(false)} maxWidth="sm" fullWidth>
