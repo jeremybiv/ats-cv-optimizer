@@ -98,6 +98,8 @@ export default async function handler(req, res) {
       structureScore: cvScore.structureScore || 80,
       keywords: keywords.all || keywords || [],
       foundKeywords: cvScore.foundKeywords || (keywords.technical || []).slice(0, 8),
+      cvText,
+      jobText: jd,
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
