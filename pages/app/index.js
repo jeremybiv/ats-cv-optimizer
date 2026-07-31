@@ -59,6 +59,10 @@ export default function Home() {
   const [historyList, setHistoryList] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [coverLetterOpen, setCoverLetterOpen] = useState(false);
+  const [coverLetterLoading, setCoverLetterLoading] = useState(false);
+  const [letterCopied, setLetterCopied] = useState(false);
   const fileRef = useRef(null);
   const resultRef = useRef(null);
 
@@ -282,6 +286,42 @@ export default function Home() {
     navigator.clipboard.writeText(result?.html || '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCoverLetter = async () => {
+    const cvText = result?.cvText || '';
+    const job = jobText || result?.jobText || '';
+    if (!cvText || !job) return;
+    setCoverLetterLoading(true);
+    setCoverLetter('');
+    try {
+      const res = await fetch('/api/cover-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cvText, jobText: job }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur lors de la generation de la lettre');
+      setCoverLetter(data.letter || '');
+      setCoverLetterOpen(true);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCoverLetterLoading(false);
+    }
+  };
+
+  const handleCopyLetter = () => {
+    navigator.clipboard.writeText(coverLetter);
+    setLetterCopied(true);
+    setTimeout(() => setLetterCopied(false), 2000);
+  };
+
+  const handleDownloadLetter = () => {
+    const blob = new Blob([coverLetter], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'lettre_de_motivation.txt'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleReset = () => {
@@ -924,6 +964,11 @@ ${result.html}
                 }} startIcon={<DownloadIcon />} sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
                   Télécharger HTML
                 </Button>
+                <Button variant="outlined" onClick={handleCoverLetter} disabled={coverLetterLoading}
+                  startIcon={coverLetterLoading ? <CircularProgress size={16} /> : <AutoAwesomeIcon />}
+                  sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#7b1fa2' }}>
+                  {coverLetterLoading ? 'Generation...' : '\u270d\ufe0f Lettre de motivation'}
+                </Button>
                 <Button variant="outlined" onClick={handleShare} disabled={shareLoading}
                   startIcon={shareLoading ? <CircularProgress size={16} /> : <ShareIcon />}
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
@@ -1132,7 +1177,36 @@ ${result.html}
         </DialogActions>
       </Dialog>
 
+      {/* Cover Letter Dialog */}
+      <Dialog open={coverLetterOpen} onClose={() => setCoverLetterOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ fontWeight: 500 }}>{'\u270d\ufe0f Lettre de motivation'}</DialogTitle>
+        <DialogContent>
+          <TextField
+            multiline
+            fullWidth
+            minRows={14}
+            maxRows={24}
+            value={coverLetter}
+            onChange={(e) => setCoverLetter(e.target.value)}
+            variant="outlined"
+            sx={{ '& .MuiOutlinedInput-root': { fontFamily: 'inherit' } }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCopyLetter} startIcon={<ContentCopyIcon />} sx={{ textTransform: 'none', color: '#1a73e8' }}>
+            {letterCopied ? 'Copié ✓' : 'Copier'}
+          </Button>
+          <Button onClick={handleDownloadLetter} startIcon={<DownloadIcon />} sx={{ textTransform: 'none', color: '#1a73e8' }}>
+            Télécharger .txt
+          </Button>
+          <Button onClick={() => setCoverLetterOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="✅ HTML copié" />
+      <Snackbar open={letterCopied} autoHideDuration={2000} onClose={() => setLetterCopied(false)} message="📋 Lettre copiée dans le presse-papier" />
       <Snackbar open={shareSnackbar} autoHideDuration={2000} onClose={() => setShareSnackbar(false)} message="🔗 Lien copié dans le presse-papier" />
     </Box>
   );
