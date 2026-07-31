@@ -15,8 +15,13 @@ export async function initDB() {
       email VARCHAR(255) UNIQUE NOT NULL,
       password VARCHAR(255) NOT NULL,
       name VARCHAR(255),
+      subscription_status VARCHAR(20) DEFAULT 'free',
+      stripe_customer_id VARCHAR(255),
       created_at TIMESTAMP DEFAULT NOW()
     )`;
+    // Ensure the subscription columns exist on already-created tables (Neon / Postgres)
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(20) DEFAULT 'free'`;
+    await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)`;
     await sql`CREATE TABLE IF NOT EXISTS shared_cvs (
       id VARCHAR(36) PRIMARY KEY,
       html TEXT NOT NULL,
@@ -52,6 +57,37 @@ export async function createUser({ email, password, name }) {
   } catch (e) {
     if (e.message.includes('duplicate')) throw new Error('Cet email est déjà utilisé.');
     throw e;
+  }
+}
+
+// ── SUBSCRIPTION (Stripe webhook) ─────────────
+
+export async function setUserSubscription({ email, status, stripeCustomerId = null }) {
+  await initDB();
+  try {
+    if (email) {
+      const { rows } = await sql`
+        UPDATE users
+        SET subscription_status = ${status}, stripe_customer_id = ${stripeCustomerId}
+        WHERE email = ${email}
+        RETURNING id, email, subscription_status
+      `;
+      return rows[0] || null;
+    }
+    // Fallback when the event only carries the Stripe customer id (e.g. subscription.deleted)
+    if (stripeCustomerId) {
+      const { rows } = await sql`
+        UPDATE users
+        SET subscription_status = ${status}
+        WHERE stripe_customer_id = ${stripeCustomerId}
+        RETURNING id, email, subscription_status
+      `;
+      return rows[0] || null;
+    }
+    return null;
+  } catch (e) {
+    console.error('[DB] setUserSubscription error:', e.message);
+    return null;
   }
 }
 
