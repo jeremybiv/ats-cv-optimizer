@@ -375,6 +375,8 @@ export default function Home() {
         node.parentNode.replaceChild(frag, node);
       });
     } catch (err) { /* ignore */ }
+  };
+
   const handleDownloadWord = () => {
     if (!result?.html) return;
     try {
@@ -815,6 +817,7 @@ ${result.html}
                 <Button variant="outlined" onClick={() => setCompareOpen(true)} startIcon={<CompareArrowsIcon />}
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#202124' }}>
                   Comparer avant/après
+                </Button>
                 <Button variant="outlined" onClick={handleDownloadWord} startIcon={<DescriptionIcon />}
                   sx={{ borderRadius: '20px', textTransform: 'none', borderColor: '#dadce0', color: '#2b579a' }}>
                   Télécharger Word
