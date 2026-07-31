@@ -509,6 +509,9 @@ ${result.html}
       } catch (err2) {
         setError(err2.message || 'Erreur lors du téléchargement Word');
       }
+    }
+  };
+
   const interviewTypeColor = (type) => {
     const map = {
       technique: { bgcolor: '#e8f0fe', color: '#1a73e8' },
@@ -543,6 +546,9 @@ ${result.html}
       setInterviewError(err.message);
     } finally {
       setInterviewLoading(false);
+    }
+  };
+
   const handleOpenHistory = async () => {
     setHistoryOpen(true);
     setHistoryLoading(true);
@@ -1060,6 +1066,11 @@ ${result.html}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setCompareOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Interview Prep Dialog */}
       <Dialog open={interviewOpen} onClose={() => setInterviewOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ fontWeight: 500 }}>
@@ -1104,6 +1115,11 @@ ${result.html}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setInterviewOpen(false)} variant="contained" sx={{ textTransform: 'none', bgcolor: '#1a73e8' }}>
+            Fermer
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* History Dialog */}
       <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ fontWeight: 500 }}>
