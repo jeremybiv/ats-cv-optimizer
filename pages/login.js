@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Container, Box, Typography, TextField, Button, Paper, Alert } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import Head from 'next/head';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -22,11 +23,14 @@ export default function Login() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Head>
+        <title>Prospecho</title>
+      </Head>
       <Container maxWidth="xs">
         <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 36, mb: 1 }} />
-            <Typography variant="h6" sx={{ fontWeight: 500 }}>ATS CV Optimizer</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 500 }}>Prospecho</Typography>
             <Typography variant="body2" sx={{ color: '#5f6368' }}>Connectez-vous à votre compte</Typography>
           </Box>
           <form onSubmit={handleSubmit}>

@@ -19,6 +19,7 @@ import ShareIcon from '@mui/icons-material/Share';
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import LinkedInIcon from '@mui/icons-material/LinkedIn';
 import EditIcon from '@mui/icons-material/Edit';
+import Head from 'next/head';
 
 export default function Home() {
   const { data: session } = useSession();
@@ -299,12 +300,15 @@ export default function Home() {
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      <Head>
+        <title>Prospecho</title>
+      </Head>
       {/* Header */}
       <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem' }}>
-            ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
+            Prosp<span style={{ color: '#1a73e8' }}>echo</span>
           </Typography>
           <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="caption" sx={{ color: '#5f6368', display: { xs: 'none', sm: 'block' } }}>
@@ -654,7 +658,7 @@ export default function Home() {
 
         <Box sx={{ textAlign: 'center', mt: 6, mb: 2 }}>
           <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
-            ATS CV Optimizer · Propulsé par Prospimmo · Les données ne sont pas stockées
+            Prospecho · Propulsé par Prospimmo · Les données ne sont pas stockées
           </Typography>
         </Box>
       </Container>

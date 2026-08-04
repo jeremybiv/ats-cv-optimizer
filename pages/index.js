@@ -1,6 +1,7 @@
 import { Container, Box, Typography, Button, Card, CardContent, Grid, Link as MuiLink } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Link from 'next/link';
+import Head from 'next/head';
 
 const features = [
   {
@@ -45,12 +46,15 @@ const pricingPlans = [
 export default function LandingPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      <Head>
+        <title>Prospecho</title>
+      </Head>
       {/* Header */}
       <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem', flex: 1 }}>
-            ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
+            Prosp<span style={{ color: '#1a73e8' }}>echo</span>
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Link href="/login" passHref legacyBehavior>
