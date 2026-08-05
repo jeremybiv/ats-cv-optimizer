@@ -631,7 +631,7 @@ ${result.html}
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem' }}>
-            ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
+            Pros<span style={{ color: '#1a73e8' }}>pecho</span>
           </Typography>
           <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="caption" sx={{ color: '#5f6368', display: { xs: 'none', sm: 'block' } }}>
@@ -1015,7 +1015,7 @@ ${result.html}
 
         <Box sx={{ textAlign: 'center', mt: 6, mb: 2 }}>
           <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
-            ATS CV Optimizer · Propulsé par Prospimmo · Les données ne sont pas stockées
+            Prospecho · Propulsé par Prospimmo · Les données ne sont pas stockées
           </Typography>
         </Box>
       </Container>

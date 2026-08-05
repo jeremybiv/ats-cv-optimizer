@@ -48,7 +48,7 @@ export default function Signup() {
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 36, mb: 1 }} />
             <Typography variant="h6" sx={{ fontWeight: 500 }}>Créer un compte</Typography>
-            <Typography variant="body2" sx={{ color: '#5f6368' }}>Rejoignez ATS CV Optimizer</Typography>
+            <Typography variant="body2" sx={{ color: '#5f6368' }}>Rejoignez Prospecho</Typography>
           </Box>
           {success ? (
             <Alert severity="success" sx={{ borderRadius: 2 }}>Compte créé ! Redirection vers la connexion...</Alert>

@@ -106,7 +106,7 @@ export default function SharedCVPage({ cvHtml, cvName, createdAt, notFound, erro
       />
               {/* Viral badge - fixed bottom bar */}
         <div style={{position:'fixed',bottom:0,left:0,right:0,textAlign:'center',padding:'6px',background:'rgba(255,255,255,0.9)',backdropFilter:'blur(4px)',borderTop:'1px solid #e0e0e0',fontSize:'11px',zIndex:100}}>
-          CV optimise par <a href="https://ats-cv-optimizer-delta.vercel.app" style={{color:'#1a73e8',fontWeight:600,textDecoration:'none'}}>ATS CV Optimizer</a>
+          CV optimise par <a href="https://ats-cv-optimizer-delta.vercel.app" style={{color:'#1a73e8',fontWeight:600,textDecoration:'none'}}>Prospecho</a>
           {' '}— 🔗 Partage ton CV optimise
         </div>
     </Box>
