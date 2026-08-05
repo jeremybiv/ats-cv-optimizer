@@ -48,6 +48,7 @@ export default function LandingPage() {
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
       <Head>
         <title>Prospecho</title>
+        <meta name="description" content="« Pécho » ta nouvelle expérience Pro - Prospecho" />
       </Head>
       {/* Header */}
       <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
@@ -74,6 +75,12 @@ export default function LandingPage() {
       {/* Hero */}
       <Box sx={{ py: { xs: 8, md: 12 }, textAlign: 'center', background: 'linear-gradient(180deg, #e8f0fe 0%, #f8f9fa 100%)' }}>
         <Container maxWidth="md">
+          <Box sx={{
+            display: 'inline-block', bgcolor: '#e8f0fe', color: '#1a73e8',
+            px: 2, py: 0.75, borderRadius: '20px', fontWeight: 600, fontSize: '0.9rem', mb: 3,
+          }}>
+            « Pécho » ta nouvelle expérience Pro — Prospecho
+          </Box>
           <Typography variant="h3" sx={{ fontWeight: 500, color: '#202124', fontSize: { xs: '1.8rem', md: '2.5rem' }, mb: 2, lineHeight: 1.3 }}>
             Un CV qui passe les robots <span style={{ color: '#1a73e8' }}>et séduit les recruteurs</span>
           </Typography>
