@@ -904,10 +904,10 @@ ${result.html}
         {quotaExceeded && (
           <Alert severity="warning" sx={{ mb: 2, borderRadius: 2 }} action={
             <Button color="inherit" size="small" onClick={handleUpgrade} disabled={upgradeLoading} sx={{ fontWeight: 600 }}>
-              {upgradeLoading ? 'Redirection...' : 'Passer à Illimité 7.90€/mois'}
+              {upgradeLoading ? 'Redirection...' : 'Passer à Pro 1,50€/CV'}
             </Button>
           }>
-            Quota gratuit atteint : 3 CV/mois maximum. Passe à Illimité pour générer des CV sans limite.
+            Quota gratuit atteint : 2 CV/mois maximum. Passe à Pro pour générer des CV sans limite.
           </Alert>
         )}
 

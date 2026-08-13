@@ -97,8 +97,8 @@ export async function setUserSubscription({ email, status, stripeCustomerId = nu
   }
 }
 
-// ── USAGE QUOTA (free plan: 3 CV/month) ───────
-// ── USAGE QUOTA (free plan: 3 CV/month) ───────
+// ── USAGE QUOTA (free plan: 2 CV/month) ───────
+// ── USAGE QUOTA (free plan: 2 CV/month) ───────
 
 export function currentMonth() {
   const d = new Date();
