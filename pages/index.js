@@ -31,16 +31,16 @@ const pricingPlans = [
   {
     name: 'Gratuit',
     price: '0€',
-    desc: '3 CV par mois',
+    desc: '2 CV par mois',
     cta: 'Commencer',
     href: '/app',
   },
   {
-    name: 'Illimité',
-    price: '7.90€/mois',
-    desc: 'CV illimités',
+    name: 'Pro',
+    price: '1,50€/CV',
+    desc: 'CV illimités, paiement à l\'unité',
     badge: 'Populaire',
-    cta: 'S\'abonner',
+    cta: 'Acheter un CV',
     href: null,
   },
 ];
@@ -271,12 +271,12 @@ export default function LandingPage() {
               "@type": "Offer",
               "price": "0",
               "priceCurrency": "EUR",
-              "description": "Gratuit - 3 CV par mois"
+              "description": "Gratuit - 2 CV par mois"
             }, {
               "@type": "Offer",
-              "price": "7.90",
+              "price": "1.50",
               "priceCurrency": "EUR",
-              "description": "Illimite - 7.90€/mois"
+              "description": "Pro - 1,50€/CV"
             }]
           })
         }}

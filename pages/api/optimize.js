@@ -7,12 +7,12 @@ import { findUserByEmail, getUserUsage, incrementUsage } from '../../src/lib/db'
 
 export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
-const FREE_PLAN_MONTHLY_LIMIT = 3;
+const FREE_PLAN_MONTHLY_LIMIT = 2;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
-    // ── Subscription quota check (free plan: 3 CV/month, Illimité: unlimited) ──
+    // ── Subscription quota check (free plan: 2 CV/month, Pro: unlimited) ──
     const session = await getServerSession(req, res, authOptions);
     if (session?.user?.id) {
       const user = await findUserByEmail(session.user.email);
@@ -20,7 +20,7 @@ export default async function handler(req, res) {
       if (!isUnlimited) {
         const usage = await getUserUsage(session.user.id);
         if (usage >= FREE_PLAN_MONTHLY_LIMIT) {
-          return res.status(402).json({ error: 'Quota gratuit atteint - passe à l abonnement Illimité' });
+          return res.status(402).json({ error: 'Quota gratuit atteint - passe au forfait Pro (1,50€/CV)' });
         }
       }
     }
