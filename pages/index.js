@@ -64,18 +64,18 @@ export default function LandingPage() {
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Head>
-        <title>ATS CV Optimizer - Optimise ton CV pour passer les ATS</title>
+        <title>Prospecho - Optimise ton CV pour passer les ATS</title>
         <meta name="description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS (Workday, Taleo, iCIMS). Score ATS en temps reel, export PDF, partage recruteur." />
         <meta name="keywords" content="CV ATS, optimisation CV, score CV, ATS friendly, CV Workday, CV Taleo, CV en ligne, generateur CV, CV optimise ATS" />
         <meta name="robots" content="index, follow" />
         <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
         <link rel="canonical" href="https://ats-cv-optimizer-delta.vercel.app" />
-        <meta property="og:title" content="ATS CV Optimizer - Optimise ton CV pour passer les ATS" />
+        <meta property="og:title" content="Prospecho - Optimise ton CV pour passer les ATS" />
         <meta property="og:description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://ats-cv-optimizer-delta.vercel.app" />
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="ATS CV Optimizer" />
+        <meta name="twitter:title" content="Prospecho" />
         <meta name="twitter:description" content="Optimise ton CV pour passer les ATS en quelques secondes." />
       </Head>
       {/* Header */}
@@ -83,7 +83,7 @@ export default function LandingPage() {
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 28 }} />
           <Typography variant="h6" sx={{ fontWeight: 500, color: '#202124', fontSize: '1.1rem', flex: 1 }}>
-            ATS CV<span style={{ color: '#1a73e8' }}>Optimizer</span>
+            Pros<span style={{ color: '#1a73e8' }}>pecho</span>
           </Typography>
           <Box sx={{ display: 'flex', gap: 1 }}>
             <Link href="/login" passHref legacyBehavior>
@@ -215,7 +215,7 @@ export default function LandingPage() {
               },
               {
                 q: "Comment optimiser mon CV pour les ATS gratuitement ?",
-                a: "ATS CV Optimizer est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
+                a: "Prospecho est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
               },
               {
                 q: "Quels sont les meilleurs formats de CV pour les ATS ?",
@@ -263,7 +263,7 @@ export default function LandingPage() {
           __html: JSON.stringify({
             "@context": "https://schema.org",
             "@type": "Product",
-            "name": "ATS CV Optimizer",
+            "name": "Prospecho",
             "description": "Optimise ton CV pour passer les ATS",
             "datePublished": "2026-07-30",
             "dateModified": "2026-07-30",
@@ -301,7 +301,7 @@ export default function LandingPage() {
                 "name": "Comment optimiser mon CV pour les ATS gratuitement ?",
                 "acceptedAnswer": {
                   "@type": "Answer",
-                  "text": "ATS CV Optimizer est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
+                  "text": "Prospecho est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 4 fois par mois gratuitement. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes."
                 }
               },
               {

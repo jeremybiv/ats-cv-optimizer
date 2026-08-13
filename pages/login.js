@@ -26,7 +26,7 @@ export default function Login() {
         <Paper elevation={0} sx={{ border: '1px solid #e0e0e0', borderRadius: 3, p: 4 }}>
           <Box sx={{ textAlign: 'center', mb: 3 }}>
             <AutoAwesomeIcon sx={{ color: '#1a73e8', fontSize: 36, mb: 1 }} />
-            <Typography variant="h6" sx={{ fontWeight: 500 }}>ATS CV Optimizer</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 500 }}>Prospecho</Typography>
             <Typography variant="body2" sx={{ color: '#5f6368' }}>Connectez-vous à votre compte</Typography>
           </Box>
           <form onSubmit={handleSubmit}>
