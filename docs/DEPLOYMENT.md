@@ -31,7 +31,7 @@ Guide de déploiement sur Vercel, de zéro à la production.
 3. **Developers → API keys** :
    - `sk_test_...` / `sk_live_...` → variable `STRIPE_SECRET_KEY`
 4. **Developers → Webhooks → Add endpoint** :
-   - URL : `https://ats-cv-optimizer-delta.vercel.app/api/webhook`
+   - URL : `https://prospecho.fr/api/webhook`
    - Événements : `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`
    - Récupérez le **Signing secret** (`whsec_...`) → variable `STRIPE_WEBHOOK_SECRET`
 
@@ -46,17 +46,31 @@ Guide de déploiement sur Vercel, de zéro à la production.
 | Variable | Valeur |
 |---|---|
 | `NEXTAUTH_SECRET` | Chaîne aléatoire (ex. `openssl rand -base64 32`) |
-| `NEXTAUTH_URL` | `https://ats-cv-optimizer-delta.vercel.app` |
+| `NEXTAUTH_URL` | `https://prospecho.fr` |
 
-## 6. Domaine de production
+## 6. Domaine de production — prospecho.fr
 
-- Le projet est déployé sur **https://ats-cv-optimizer-delta.vercel.app** (domaine Vercel par défaut)
-- Optionnel : dans Vercel → **Settings → Domains**, ajoutez un domaine personnalisé (ex. `cvoptimizer.fr`) et configurez les enregistrements DNS correspondants
-- Mettez à jour `NEXTAUTH_URL` et le lien canonique si vous changez de domaine
+Le domaine cible du projet est **prospecho.fr**. Le déploiement Vercel par défaut
+(`https://ats-cv-optimizer-delta.vercel.app`) reste utilisable en secours, mais
+toutes les URLs canoniques du code pointent désormais vers `prospecho.fr`.
+
+Étapes à réaliser côté hébergeur (Vercel) et registrar — non automatisables depuis ce dépôt :
+
+1. **Vercel → Project → Settings → Domains** : cliquez sur **Add**, saisissez `prospecho.fr` (et `www.prospecho.fr` si vous voulez rediriger le `www`).
+2. Vercel indique les enregistrements DNS à créer chez le registrar du domaine :
+   - Domaine racine (`prospecho.fr`) : enregistrement **A** vers `76.76.21.21` (ou le nameserver Vercel proposé).
+   - Sous-domaine `www` : enregistrement **CNAME** vers `cname.vercel-dns.com`.
+   - (Alternative recommandée par Vercel : déléguer les nameservers du domaine directement à Vercel pour une gestion automatique du SSL et des redirections.)
+3. Une fois le DNS propagé, Vercel émet automatiquement le certificat SSL (Let's Encrypt) pour `prospecho.fr`.
+4. Choisissez le domaine primaire (`prospecho.fr` ou `www.prospecho.fr`) dans **Settings → Domains** : Vercel redirige automatiquement l'autre vers le domaine primaire (301).
+5. Mettez à jour les variables d'environnement Vercel :
+   - `NEXTAUTH_URL=https://prospecho.fr`
+6. Mettez à jour l'URL du webhook Stripe (**Developers → Webhooks**) vers `https://prospecho.fr/api/webhook`.
+7. Vérifiez que le certificat SSL est actif et que `https://prospecho.fr` répond 200 avant de désactiver l'ancien domaine `.vercel.app` dans les intégrations externes (Stripe, Brevo, réseaux sociaux…).
 
 ## 7. Vérifications post-déploiement
 
-- [ ] `https://ats-cv-optimizer-delta.vercel.app` répond 200
+- [ ] `https://prospecho.fr` répond 200
 - [ ] Inscription + connexion fonctionnent
 - [ ] Une optimisation CV renvoie un score et du HTML
 - [ ] Le webhook Stripe est marqué **Healthy** dans le dashboard Stripe

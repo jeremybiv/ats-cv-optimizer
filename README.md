@@ -33,7 +33,7 @@ npm run dev
 |---|---|---|
 | `DATABASE_URL` | Connexion Neon Postgres | `postgres://user:password@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require` |
 | `NEXTAUTH_SECRET` | Clé sessions NextAuth | `random-string` |
-| `NEXTAUTH_URL` | URL de production | `https://ats-cv-optimizer-delta.vercel.app` |
+| `NEXTAUTH_URL` | URL de production | `https://prospecho.fr` |
 | `STRIPE_SECRET_KEY` | Clé secrète Stripe | `sk_live_...` |
 | `STRIPE_PRICE_ID` | ID du prix abonnement | `price_...` |
 | `STRIPE_WEBHOOK_SECRET` | Secret webhook Stripe | `whsec_...` |

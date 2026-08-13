@@ -69,11 +69,11 @@ export default function LandingPage() {
         <meta name="keywords" content="CV ATS, optimisation CV, score CV, ATS friendly, CV Workday, CV Taleo, CV en ligne, generateur CV, CV optimise ATS" />
         <meta name="robots" content="index, follow" />
         <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
-        <link rel="canonical" href="https://ats-cv-optimizer-delta.vercel.app" />
+        <link rel="canonical" href="https://prospecho.fr" />
         <meta property="og:title" content="Prospecho - Optimise ton CV pour passer les ATS" />
         <meta property="og:description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d emploi et genere un CV HTML optimise pour les ATS." />
         <meta property="og:type" content="website" />
-        <meta property="og:url" content="https://ats-cv-optimizer-delta.vercel.app" />
+        <meta property="og:url" content="https://prospecho.fr" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Prospecho" />
         <meta name="twitter:description" content="Optimise ton CV pour passer les ATS en quelques secondes." />
