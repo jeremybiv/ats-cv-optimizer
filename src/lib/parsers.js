@@ -43,11 +43,14 @@ function parseCVText(pdfText) {
     // sentence that merely mentions a keyword (e.g. "5 ans d'expérience en
     // systèmes distribués.") gets misread as a new section and wipes out
     // the real content that follows.
+    // Normalise les accents pour matcher "Expérience" → "experience",
+    // "Compétences" → "competences" (regex sans accents).
+    const normalized = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const looksLikeHeader = trimmed.length <= 40 && trimmed.split(/\s+/).length <= 5 && !/[.!?]$/.test(trimmed);
     let matchedSection = null;
     if (looksLikeHeader) {
       for (const sh of sectionHeaders) {
-        if (sh.regex.test(trimmed)) {
+        if (sh.regex.test(normalized)) {
           matchedSection = sh.key;
           break;
         }
