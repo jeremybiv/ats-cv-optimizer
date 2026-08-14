@@ -142,7 +142,17 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   const experience = parsedCV?.experience || [];
   const education = parsedCV?.education || [];
   const existingSkills = parsedCV?.skills || [];
-  const allSkills = [...new Set([...existingSkills, ...(jobKeywords?.technical || []), ...(jobKeywords?.soft || [])])];
+  // Dedupe case-insensitively (keeping the first casing seen, prioritizing
+  // the candidate's own skills) — otherwise "Java" from the CV and "java"
+  // from the job keywords render as two separate, duplicate pills.
+  const seenSkills = new Set();
+  const allSkills = [...existingSkills, ...(jobKeywords?.technical || []), ...(jobKeywords?.soft || [])].filter(function(s) {
+    if (typeof s !== 'string' || !s.trim()) return false;
+    var key = s.trim().toLowerCase();
+    if (seenSkills.has(key)) return false;
+    seenSkills.add(key);
+    return true;
+  });
   const keywordSet = new Set((jobKeywords?.all || []).filter(k => typeof k === 'string').map(k => k.toLowerCase()));
   const prioritizedSkills = [...allSkills.filter(s => typeof s === 'string' ? keywordSet.has(s.toLowerCase()) : false), ...allSkills.filter(s => !(typeof s === 'string' ? keywordSet.has(s.toLowerCase()) : false))];
   const metaKeywords = (jobKeywords?.all || []).slice(0, 20).join(', ');
@@ -165,7 +175,10 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
         return h;
       }).join('\n\n');
     }
-    var h = '<div class="section">\n      <h2>Experience Professionnelle</h2>\n';
+    // No entry parsed from the base CV — fall back to bullets built from the
+    // job's top keywords. No <h2> here: callers already print a single
+    // "Experience professionnelle" section header above this block.
+    var h = '<div class="section">\n';
     (jobKeywords?.technical || []).slice(0, 5).forEach(function(k) {
       h += '      <p>• Mise en oeuvre de <strong>' + k + '</strong></p>\n';
     });
@@ -174,15 +187,18 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   }
 
   function buildEduHTML() {
+    // Emits standalone entries (no <h2>) — callers already print a single
+    // "Formation" section header, so per-entry titles use .exp-title instead
+    // to avoid stacking multiple underlined h2's for a multi-diploma CV.
     if (education.length > 0) {
       return education.map(function(edu) {
-        var h = '<div class="section">\n      <h2>' + (edu.degree || 'Formation') + '</h2>\n';
+        var h = '<div class="edu-item">\n      <div class="exp-title">' + (edu.degree || 'Formation') + '</div>\n';
         if (edu.institution) h += '      <p class="exp-company">' + edu.institution + '</p>\n';
         if (edu.dates) h += '      <p class="exp-date">' + edu.dates + '</p>\n';
         return h + '    </div>';
       }).join('\n\n');
     }
-    return '<div class="section">\n      <h2>Formation</h2>\n      <p>Diplome et formation pertinente.</p>\n    </div>';
+    return '<p>Diplome et formation pertinente.</p>';
   }
 
   function buildSkillsHTML() {
@@ -201,15 +217,143 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   var expHTML = buildExpHTML();
   var eduHTML = buildEduHTML();
   var skillsHTML = buildSkillsHTML();
+  var footer = '<div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>';
 
   if (strictMode) {
-    // ATS STRICT — one column, no graphics, linear layout
-    return '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1.0">\n  <title>CV - ' + name + '</title>\n  <style>\n    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:800px;margin:auto;padding:25px 30px;color:#222;line-height:1.4;}\n    h1{font-size:20pt;color:#1a56db;border-bottom:2px solid #1a56db;padding-bottom:4px;}\n    .contact{font-size:10pt;color:#555;margin-bottom:12px;}\n    h2{font-size:13pt;color:#1a56db;border-bottom:1px solid #ddd;padding-bottom:2px;margin-top:12px;margin-bottom:6px;}\n    .pill{display:inline-block;font-size:10pt;padding:2px 8px;margin:2px;border-radius:3px;background:#e8f0fe;color:#1a56db;}\n    ul{padding-left:16px;margin:4px 0;}\n    li{margin-bottom:2px;font-size:10.5pt;}\n    .exp-header{display:flex;justify-content:space-between;font-weight:700;font-size:11pt;}\n    .exp-date{font-weight:400;color:#666;font-size:9.5pt;}\n    .exp-company{font-size:10pt;color:#444;margin-bottom:2px;}\n    .meta-footer{margin-top:20px;padding-top:8px;border-top:1px solid #eee;font-size:8pt;color:#999;}\n  </style>\n</head>\n<body>\n  <h1>' + name + '</h1>\n  <div class="contact">' + email + (phone ? ' | ' + phone : '') + '</div>\n  <div class="section">\n    <h2>Resume</h2>\n    <p>' + summaryText + '</p>\n  </div>\n  <div class="section">\n    <h2>Competences</h2>\n    <p>' + skillsHTML + '</p>\n  </div>\n  ' + expHTML + '\n  ' + eduHTML + '\n  <div class="meta-footer">\n    <p>Mots-cles: ' + metaKeywords + '</p>\n    <p>CV genere pour ATS</p>\n  </div>\n  <div style=\"text-align:center;font-size:7pt;color:#999;padding-top:6px;margin-top:10px;border-top:1px solid #eee;\">\n    CV optimise par <a href=\"https://prospecho.fr\" style=\"color:#1a73e8;text-decoration:none;\">Prospecho</a>\n    — Ameliore ton score ATS en quelques secondes\n  </div>\n</body>\n</html>';
+    // ATS STRICT — single column, no tables/graphics, but still legible and well spaced.
+    return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>CV - ${name}</title>
+  <style>
+    *{box-sizing:border-box;}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:760px;margin:0 auto;padding:36px 34px 28px;color:#222;line-height:1.5;background:#fff;}
+    h1{font-size:23pt;font-weight:700;margin:0 0 4px;color:#111;}
+    .role{font-size:12pt;color:#1a56db;font-weight:600;margin:0 0 10px;}
+    .contact{font-size:10pt;color:#555;margin-bottom:22px;}
+    .contact span{margin-right:14px;}
+    .section{margin-bottom:20px;}
+    h2{font-size:11pt;letter-spacing:0.6px;text-transform:uppercase;color:#1a56db;margin:0 0 10px;padding-bottom:5px;border-bottom:2px solid #1a56db;}
+    p{margin:0 0 6px;}
+    .pill{display:inline-block;font-size:9.5pt;padding:3px 10px;margin:0 6px 6px 0;border-radius:3px;background:#eef3fd;color:#1a56db;border:1px solid #d7e3fb;}
+    ul{padding-left:18px;margin:4px 0 0;}
+    li{margin-bottom:4px;font-size:10.5pt;}
+    .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;}
+    .exp-title{font-weight:700;font-size:11pt;}
+    .exp-date{font-weight:400;color:#666;font-size:9.5pt;white-space:nowrap;}
+    .exp-company{font-size:10pt;color:#444;margin:1px 0 5px;font-style:italic;}
+    .edu-item{margin-bottom:10px;}
+    .edu-item:last-child{margin-bottom:0;}
+    .meta-footer{margin-top:24px;padding-top:10px;border-top:1px solid #e5e5e5;font-size:8pt;color:#999;}
+    .brand-footer{text-align:center;font-size:7.5pt;color:#999;padding-top:10px;margin-top:14px;border-top:1px solid #eee;}
+    .brand-footer a{color:#1a56db;text-decoration:none;}
+  </style>
+</head>
+<body>
+  <h1>${name}</h1>
+  <div class="role">${job?.title || 'Titre du poste vise'}</div>
+  <div class="contact"><span>${email}</span>${phone ? '<span>' + phone + '</span>' : ''}</div>
+  <div class="section">
+    <h2>Resume</h2>
+    <p>${summaryText}</p>
+  </div>
+  <div class="section">
+    <h2>Competences</h2>
+    <p>${skillsHTML}</p>
+  </div>
+  <div class="section">
+    <h2>Experience professionnelle</h2>
+    ${expHTML}
+  </div>
+  <div class="section">
+    <h2>Formation</h2>
+    ${eduHTML}
+  </div>
+  <div class="meta-footer">
+    <p>Mots-cles: ${metaKeywords}</p>
+  </div>
+  ${footer}
+</body>
+</html>`;
   }
 
-  // DEFAULT — two-column visual template with header
+  // DEFAULT — two-column visual template (header sombre + colonne competences, style skill CV builder)
   var jobTitle = job?.title || 'Titre du poste vise';
-  return '<!DOCTYPE html>\n<html lang="fr">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width,initial-scale=1.0">\n  <meta name="keywords" content="' + metaKeywords + '">\n  <title>CV - ' + name + '</title>\n  <style>\n    :root{--ink:#1c1c1c;--paper:#fff;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}\n    body{margin:0;font-family:Georgia,\'Times New Roman\',serif;color:var(--ink);font-size:14px;line-height:1.5;max-width:210mm;margin:auto;}\n    .header{background:var(--dark);color:#fff;padding:32px 40px 24px 40px;}\n    .header h1{margin:0;font-size:32px;font-weight:400;}\n    .header .sub{font-size:16px;color:var(--sand);margin:4px 0;}\n    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#2b2b2b;color:#f2ede3;padding:4px 10px;border-radius:3px;display:inline-block;margin:2px;}\n    .layout{display:flex;}\n    .main{flex:1 1 68%;padding:24px 32px 32px 40px;}\n    .side{flex:0 0 32%;background:var(--sand);padding:24px 24px 32px 24px;border-left:1px solid var(--sandline);}\n    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:5px;}\n    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:14px 16px;font-size:13px;}\n    .exp-title{font-size:14.5px;font-weight:bold;}\n    .exp-company{font-size:13px;color:var(--gold);margin:2px 0 4px;}\n    .exp-date{font-size:12px;color:var(--muted);}\n    .exp-stack{font-family:Arial,Helvetica,sans-serif;font-size:10px;color:var(--muted);font-style:italic;}\n    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10px;padding:3px 8px;border-radius:2px;display:inline-block;margin:2px;}\n    .pill.dark{background:var(--dark);color:#fff;}\n    .pill.light{background:#fff;border:1px solid var(--sandline);color:#333;}\n    ul{padding-left:16px;margin:4px 0;}\n    li{margin-bottom:2px;font-size:12.5px;}\n    @media print{.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}\n  </style>\n</head>\n<body>\n  <div class="header">\n    <h1>' + name + '</h1>\n    <div class="sub">' + jobTitle + '</div>\n    <div style="margin-top:8px;">\n      ' + (jobKeywords?.technical || []).slice(0, 5).map(function(k) { return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>'; }).join('') + '\n    </div>\n    <p style="font-size:11px;color:#aaa;margin:8px 0 0;">' + email + (phone ? ' | ' + phone : '') + '</p>\n  </div>\n  <div class="layout">\n  <div class="main">\n    <h2 class="section">Profil</h2>\n    <div class="summary-box"><p style="margin:0;">' + summaryText + '</p></div>\n    <h2 class="section">Experience professionnelle</h2>\n    ' + expHTML.replace(/<h2>/g, '<h2 class="section">') + '\n  </div>\n  <div class="side">\n    <h2 class="section">Competences</h2>\n    <div style="margin-bottom:12px;">' + skillsHTML + '</div>\n    <h2 class="section">Formation</h2>\n    ' + eduHTML.replace(/<h2>/g, '<h2 class="section">') + '\n  </div>\n  </div>\n  <div style=\"text-align:center;font-size:7pt;color:#999;padding-top:6px;margin-top:10px;border-top:1px solid #eee;\">\n    CV optimise par <a href=\"https://prospecho.fr\" style=\"color:#1a73e8;text-decoration:none;\">Prospecho</a>\n    — Ameliore ton score ATS en quelques secondes\n  </div>\n</body>\n</html>';
+  var tagsHTML = (jobKeywords?.technical || []).slice(0, 5).map(function(k) {
+    return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="keywords" content="${metaKeywords}">
+  <title>CV - ${name}</title>
+  <style>
+    *{box-sizing:border-box;}
+    :root{--ink:#1c1c1c;--paper:#fff;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}
+    body{margin:0 auto;max-width:210mm;font-family:Georgia,'Times New Roman',serif;color:var(--ink);font-size:13.5px;line-height:1.55;background:#fff;}
+    .header{background:var(--dark);color:#fff;padding:36px 44px 26px;}
+    .header h1{margin:0;font-size:32px;font-weight:400;letter-spacing:0.3px;}
+    .header .sub{font-size:15px;color:var(--sand);margin:4px 0 14px;font-style:italic;}
+    .tags{display:flex;flex-wrap:wrap;gap:6px;}
+    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#2b2b2b;color:#f2ede3;padding:5px 11px;border-radius:3px;}
+    .contact-row{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#b8b8b8;margin-top:14px;display:flex;flex-wrap:wrap;gap:4px 16px;}
+    .layout{display:flex;flex-wrap:wrap;}
+    .main{flex:1 1 62%;min-width:280px;padding:26px 30px 30px 44px;}
+    .side{flex:1 1 34%;min-width:220px;background:var(--sand);padding:26px 28px 30px;border-left:1px solid var(--sandline);}
+    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:6px;margin:0 0 12px;}
+    .main h2.section{margin-top:26px;}
+    .main h2.section:first-child{margin-top:0;}
+    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:15px 18px;font-size:13px;}
+    .summary-box p{margin:0;}
+    .exp-block{margin-bottom:18px;}
+    .exp-block:last-child{margin-bottom:0;}
+    .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;}
+    .exp-title{font-size:14.5px;font-weight:bold;}
+    .exp-company{font-size:12.5px;color:var(--gold);margin:2px 0 5px;font-family:Arial,Helvetica,sans-serif;}
+    .exp-date{font-size:11.5px;color:var(--muted);font-family:Arial,Helvetica,sans-serif;white-space:nowrap;}
+    .pill-wrap{display:flex;flex-wrap:wrap;gap:6px;}
+    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10px;padding:4px 9px;border-radius:2px;line-height:1.3;}
+    .pill.dark{background:var(--dark);color:#fff;}
+    .pill.light{background:#fff;border:1px solid var(--sandline);color:#333;}
+    ul{padding-left:17px;margin:5px 0 0;}
+    li{margin-bottom:4px;font-size:12.5px;}
+    .edu-item{margin-bottom:12px;}
+    .edu-item:last-child{margin-bottom:0;}
+    .side .exp-title{font-size:13px;}
+    .brand-footer{text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#999;padding:12px 0;border-top:1px solid var(--sandline);}
+    .brand-footer a{color:var(--gold);text-decoration:none;}
+    @media print{.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>${name}</h1>
+    <div class="sub">${jobTitle}</div>
+    <div class="tags">${tagsHTML}</div>
+    <div class="contact-row"><span>${email}</span>${phone ? '<span>' + phone + '</span>' : ''}</div>
+  </div>
+  <div class="layout">
+    <div class="main">
+      <h2 class="section">Profil</h2>
+      <div class="summary-box"><p>${summaryText}</p></div>
+      <h2 class="section">Experience professionnelle</h2>
+      ${expHTML.replace(/<div class="section">/g, '<div class="exp-block">')}
+    </div>
+    <div class="side">
+      <h2 class="section">Competences</h2>
+      <div class="pill-wrap" style="margin-bottom:22px;">${skillsHTML}</div>
+      <h2 class="section">Formation</h2>
+      ${eduHTML}
+    </div>
+  </div>
+  <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
+</body>
+</html>`;
 }
 
 function formatCVHTML(html, keywords) {

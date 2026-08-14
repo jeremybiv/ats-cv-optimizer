@@ -25,13 +25,16 @@ function parseCVText(pdfText) {
   let currentSection = null;
   let currentItem = null;
 
+  // Word-boundary anchored so a real word/title doesn't false-match a header
+  // keyword as a substring (e.g. "bac" inside "backend", "lang" inside
+  // "language model" in a skills line).
   const sectionHeaders = [
-    { regex: /experience|emploi|travail|career|work|professional/i, key: 'experience' },
-    { regex: /education|formation|etudes|diplome|degree|school|university|college|bac/i, key: 'education' },
-    { regex: /competences|skills|technologies|tools|langages|programming/i, key: 'skills' },
-    { regex: /certifications|certificates|certificat/i, key: 'certifications' },
-    { regex: /langues|languages|lang/i, key: 'languages' },
-    { regex: /resume|summary|profil|profile|about|objectif/i, key: 'summary' },
+    { regex: /\b(experience|emploi|travail|career|work|professional)\b/i, key: 'experience' },
+    { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
+    { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
+    { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
+    { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
+    { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
   ];
 
   for (const line of lines) {
@@ -92,10 +95,20 @@ function parseCVText(pdfText) {
     }
 
     // Fill based on current section
-    if (currentSection === 'experience' && currentItem) {
-      // Try to detect company line
+    if (currentSection === 'experience') {
+      // A "Company | Title" line always starts a new job entry — a CV section
+      // usually lists several jobs under one "Experience" header, so without
+      // this a second job would get folded into the first one's description.
       const companyMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      if (companyMatch && !currentItem.company) {
+      if (companyMatch && (!currentItem || currentItem.company)) {
+        currentItem = { title: '', company: '', dates: '', description: [] };
+        cv.experience.push(currentItem);
+      }
+      if (!currentItem) {
+        currentItem = { title: '', company: '', dates: '', description: [] };
+        cv.experience.push(currentItem);
+      }
+      if (companyMatch) {
         currentItem.company = companyMatch[1].trim();
         currentItem.title = companyMatch[2].trim();
       } else if (trimmed.match(/^\d{4}/) || trimmed.match(/20\d{2}/)) {
@@ -103,9 +116,17 @@ function parseCVText(pdfText) {
       } else {
         currentItem.description.push(trimmed);
       }
-    } else if (currentSection === 'education' && currentItem) {
+    } else if (currentSection === 'education') {
       const degreeMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      if (degreeMatch && !currentItem.institution) {
+      if (degreeMatch && (!currentItem || currentItem.institution)) {
+        currentItem = { degree: '', institution: '', dates: '', description: [] };
+        cv.education.push(currentItem);
+      }
+      if (!currentItem) {
+        currentItem = { degree: '', institution: '', dates: '', description: [] };
+        cv.education.push(currentItem);
+      }
+      if (degreeMatch) {
         currentItem.institution = degreeMatch[1].trim();
         currentItem.degree = degreeMatch[2].trim();
       } else if (trimmed.match(/20\d{2}/)) {
