@@ -251,7 +251,11 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   var certifications = parsedCV?.certifications || [];
 
   if (strictMode) {
-    // ATS STRICT — single column, no tables/graphics, but still legible and well spaced.
+    // ATS STRICT — single column, no tables/graphics/pseudo-elements, but
+    // still legible and comfortable to read: larger type scale, generous
+    // line-height and whitespace, gently rounded boxes/pills (rounding is
+    // pure decoration — it doesn't touch text content or DOM order, so it
+    // stays fully ATS-safe).
     return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -260,33 +264,35 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   <title>CV - ${name}</title>
   <style>
     *{box-sizing:border-box;}
-    :root{--ink:#1c1c1c;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}
-    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:760px;margin:0 auto;padding:36px 34px 28px;color:var(--ink);line-height:1.55;background:#fff;}
-    h1{font-size:23pt;font-weight:700;margin:0 0 5px;color:var(--dark);}
-    .role{font-size:10.5pt;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);font-weight:600;margin:0 0 10px;}
-    .contact{font-size:10pt;color:#555;margin-bottom:22px;}
-    .contact span{margin-right:14px;}
-    .section{margin-bottom:22px;}
-    h2{font-size:11pt;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--sandline);}
+    :root{--ink:#242220;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#6b6660;}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11.5pt;max-width:740px;margin:0 auto;padding:40px 38px 32px;color:var(--ink);line-height:1.65;background:#fff;}
+    h1{font-size:25pt;font-weight:700;margin:0 0 6px;color:var(--dark);letter-spacing:-0.3px;}
+    .role{font-size:11pt;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);font-weight:600;margin:0 0 12px;}
+    .contact{font-size:10.5pt;color:var(--muted);margin-bottom:26px;}
+    .contact span{margin-right:16px;}
+    .section{margin-bottom:26px;}
+    h2{font-size:11.5pt;letter-spacing:0.8px;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 12px;padding-bottom:7px;border-bottom:2px solid var(--sandline);}
     p{margin:0 0 6px;}
-    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:14px 16px;font-size:10.5pt;}
-    .stats{display:flex;gap:10px;margin:16px 0 4px;}
-    .stat{flex:1;text-align:center;background:var(--sand);border:1px solid var(--sandline);padding:9px 4px;}
-    .stat .num{font-size:16pt;font-weight:bold;color:var(--dark);}
-    .stat .label{font-size:7.5pt;letter-spacing:0.4px;color:var(--muted);text-transform:uppercase;}
-    .pill{display:inline-block;font-size:9.5pt;padding:3px 10px;margin:0 6px 6px 0;border-radius:3px;background:var(--sand);color:#333;border:1px solid var(--sandline);}
-    ul{padding-left:18px;margin:4px 0 0;}
-    li{margin-bottom:4px;font-size:10.5pt;}
+    .summary-box{background:var(--sand);border-radius:10px;border-left:4px solid var(--gold);padding:16px 18px;font-size:11pt;}
+    .stats{display:flex;gap:10px;margin:18px 0 4px;}
+    .stat{flex:1;text-align:center;background:var(--sand);border-radius:10px;padding:12px 6px;}
+    .stat .num{font-size:17pt;font-weight:bold;color:var(--dark);}
+    .stat .label{font-size:8pt;letter-spacing:0.3px;color:var(--muted);text-transform:uppercase;margin-top:2px;}
+    .pill{display:inline-block;font-size:10pt;padding:5px 13px;margin:0 7px 7px 0;border-radius:999px;background:var(--sand);color:#3a352e;}
+    ul{padding-left:20px;margin:6px 0 0;}
+    li{margin-bottom:6px;font-size:11pt;}
+    .exp-title{font-weight:700;font-size:12pt;}
+    .exp-date{font-weight:500;color:var(--muted);font-size:10pt;white-space:nowrap;}
+    .exp-company{font-size:10.5pt;color:var(--gold);margin:2px 0 4px;font-weight:600;}
+    .exp-stack{font-size:9.5pt;color:var(--muted);font-style:italic;margin:0 0 6px;}
+    .exp-item{margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid #f0ede6;}
+    .exp-item:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
     .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;}
-    .exp-title{font-weight:700;font-size:11pt;}
-    .exp-date{font-weight:400;color:var(--muted);font-size:9.5pt;white-space:nowrap;}
-    .exp-company{font-size:10pt;color:#444;margin:1px 0 3px;font-weight:600;}
-    .exp-stack{font-size:9pt;color:var(--muted);font-style:italic;margin:0 0 5px;}
-    .edu-item{margin-bottom:10px;}
+    .edu-item{margin-bottom:12px;}
     .edu-item:last-child{margin-bottom:0;}
-    .meta-footer{margin-top:24px;padding-top:10px;border-top:1px solid #e5e5e5;font-size:8pt;color:#999;}
-    .brand-footer{text-align:center;font-size:7.5pt;color:#999;padding-top:10px;margin-top:14px;border-top:1px solid #eee;}
-    .brand-footer a{color:var(--gold);text-decoration:none;}
+    .meta-footer{margin-top:26px;padding-top:12px;border-top:1px solid #eee;font-size:8.5pt;color:#a39d94;}
+    .brand-footer{text-align:center;font-size:8.5pt;color:#a39d94;padding-top:12px;margin-top:16px;border-top:1px solid #eee;}
+    .brand-footer a{color:var(--gold);text-decoration:none;font-weight:600;}
   </style>
 </head>
 <body>
@@ -309,7 +315,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   </div>
   <div class="section">
     <h2>Experience professionnelle</h2>
-    ${expHTML}
+    ${expHTML.replace(/<div class="section">/g, '<div class="exp-item">')}
   </div>
   <div class="section">
     <h2>Formation</h2>
@@ -338,6 +344,8 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
   }).join('');
 
+  // Each job gets a small gold "timeline dot" on its left rail (pure CSS
+  // ::before, no image) — a quiet scanning aid down the experience column.
   var jobsHTML = experience.length > 0
     ? experience.map(function(exp) {
         var stack = jobStack(exp);
@@ -370,82 +378,94 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   <title>CV - ${name}</title>
   <style>
     *{box-sizing:border-box;}
-    :root{--ink:#1c1c1c;--paper:#fff;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}
-    body{margin:0 auto;max-width:210mm;font-family:Georgia,'Times New Roman',serif;color:var(--ink);background:var(--paper);font-size:14px;line-height:1.5;}
-    .header{background:var(--dark);color:#fff;padding:36px 44px 30px;}
-    .header h1{margin:0;font-size:34px;letter-spacing:0.3px;font-weight:400;}
-    .header .role{font-family:Arial,Helvetica,sans-serif;letter-spacing:2.5px;font-size:11.5px;color:#cfcfcf;margin-top:6px;text-transform:uppercase;}
+    :root{--ink:#242220;--paper:#fff;--page:#efece4;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#6b6660;}
+    /* Sans-serif body for on-screen/ATS readability; serif is reserved for
+       the name only, like a wordmark, so the page still feels editorial. */
+    body{margin:0;padding:28px 16px;background:var(--page);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;color:var(--ink);font-size:15px;line-height:1.62;}
+    .card{max-width:210mm;margin:0 auto;background:var(--paper);border-radius:16px;overflow:hidden;box-shadow:0 12px 32px rgba(20,20,20,0.12);}
+    .header{background:var(--dark);color:#fff;padding:40px 46px 30px;position:relative;}
+    .header:after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:var(--gold);}
+    .header h1{margin:0;font-family:Georgia,'Times New Roman',serif;font-size:36px;letter-spacing:0.2px;font-weight:400;}
+    .header .role{letter-spacing:2px;font-size:12px;color:#d8d3c8;margin-top:8px;text-transform:uppercase;font-weight:600;}
     .header-flex{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;}
-    .contact{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#d8d8d8;text-align:right;line-height:1.8;white-space:nowrap;}
-    .tags{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;}
-    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;background:#2b2b2b;color:var(--sand);padding:5px 11px;border-radius:3px;}
+    .contact{font-size:12px;color:#c9c4b9;text-align:right;line-height:1.9;white-space:nowrap;}
+    .tags{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px;}
+    .tag{font-size:11px;background:rgba(255,255,255,0.1);color:var(--sand);padding:6px 13px;border-radius:999px;}
     .layout{display:flex;flex-wrap:wrap;}
-    .main{flex:1 1 62%;min-width:280px;padding:28px 32px 30px 44px;}
-    .side{flex:1 1 34%;min-width:220px;background:var(--sand);padding:28px 28px 32px;border-left:1px solid var(--sandline);}
-    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:6px;margin:26px 0 12px;}
+    .main{flex:1 1 62%;min-width:280px;padding:32px 34px 36px 46px;}
+    .side{flex:1 1 34%;min-width:230px;background:var(--sand);padding:32px 30px 36px;}
+    h2.section{font-size:12.5px;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold);font-weight:700;border-bottom:2px solid var(--sandline);padding-bottom:7px;margin:30px 0 16px;}
     h2.section:first-child{margin-top:0;}
-    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:15px 18px;font-size:13.5px;}
+    .summary-box{background:var(--sand);border-radius:12px;border-left:4px solid var(--gold);padding:18px 20px;font-size:14.5px;}
     .summary-box p{margin:0;}
-    .stats{display:flex;gap:10px;margin:16px 0 4px;}
-    .stat{flex:1;text-align:center;background:var(--sand);border:1px solid var(--sandline);padding:10px 4px;}
-    .stat .num{font-size:19px;font-weight:bold;color:var(--dark);font-family:Arial,Helvetica,sans-serif;}
-    .stat .label{font-family:Arial,Helvetica,sans-serif;font-size:9px;letter-spacing:0.4px;color:var(--muted);text-transform:uppercase;}
-    .job{margin-bottom:20px;}
+    .stats{display:flex;gap:10px;margin:18px 0 4px;}
+    .stat{flex:1;text-align:center;background:var(--sand);border-radius:12px;padding:13px 6px;}
+    .stat .num{font-size:20px;font-weight:700;color:var(--dark);}
+    .stat .label{font-size:9.5px;letter-spacing:0.3px;color:var(--muted);text-transform:uppercase;margin-top:3px;}
+    .job{position:relative;margin-bottom:24px;padding-left:20px;border-left:2px solid var(--sandline);}
+    .job:before{content:"";position:absolute;left:-6px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--gold);border:2px solid var(--paper);box-shadow:0 0 0 1px var(--sandline);}
     .job:last-child{margin-bottom:0;}
-    .job-title{font-size:15px;font-weight:bold;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;}
-    .job-dates{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:var(--muted);font-weight:normal;white-space:nowrap;}
-    .job-company{font-family:Arial,Helvetica,sans-serif;font-weight:bold;color:var(--gold);margin-top:2px;font-size:12.5px;}
-    .job-stack{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:var(--muted);margin:4px 0 6px;font-style:italic;}
-    ul.bullets{margin:5px 0 0;padding-left:17px;}
-    ul.bullets li{margin-bottom:5px;font-size:13px;}
-    .side h3{font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin:20px 0 8px;border-bottom:1px solid var(--sandline);padding-bottom:4px;}
+    .job-title{font-size:16px;font-weight:700;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;}
+    .job-dates{font-size:12px;color:var(--muted);font-weight:500;white-space:nowrap;}
+    .job-company{font-weight:700;color:var(--gold);margin-top:2px;font-size:13.5px;}
+    .job-stack{font-size:11px;color:var(--muted);margin:5px 0 7px;font-style:italic;}
+    ul.bullets{margin:6px 0 0;padding-left:18px;}
+    ul.bullets li{margin-bottom:6px;font-size:14px;}
+    .side h3{font-size:11.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);font-weight:700;margin:22px 0 10px;border-bottom:1px solid var(--sandline);padding-bottom:5px;}
     .side h3:first-child{margin-top:0;}
-    .pill-group{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
-    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;padding:4px 9px;border-radius:2px;line-height:1.3;}
+    .pill-group{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:4px;}
+    .pill{font-size:11.5px;padding:5px 12px;border-radius:999px;line-height:1.3;}
     .pill.dark{background:var(--dark);color:#fff;}
-    .pill.light{background:#fff;border:1px solid var(--sandline);color:#333;}
-    .edu-item{margin-bottom:10px;font-size:12.8px;}
+    .pill.light{background:#fff;border:1px solid var(--sandline);color:#3a352e;}
+    .edu-item{margin-bottom:12px;font-size:13.5px;}
     .edu-item:last-child{margin-bottom:0;}
-    .edu-year{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:var(--muted);}
-    .brand-footer{text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#999;padding:12px 0;border-top:1px solid var(--sandline);}
-    .brand-footer a{color:var(--gold);text-decoration:none;}
-    @media print{body{font-size:12.5px;}.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}
+    .edu-year{font-size:11.5px;color:var(--muted);}
+    .brand-footer{text-align:center;font-size:10.5px;color:#a39d94;padding:14px 0;border-top:1px solid var(--sandline);}
+    .brand-footer a{color:var(--gold);text-decoration:none;font-weight:600;}
+    @media print{
+      body{background:#fff;padding:0;font-size:13px;}
+      .card{border-radius:0;box-shadow:none;max-width:none;}
+      .layout{display:block;}
+      .side{border-left:none;border-top:1px solid var(--sandline);}
+    }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="header-flex">
-      <div>
-        <h1>${name}</h1>
-        <div class="role">${jobTitle}</div>
-        <div class="tags">${tagsHTML}</div>
+  <div class="card">
+    <div class="header">
+      <div class="header-flex">
+        <div>
+          <h1>${name}</h1>
+          <div class="role">${jobTitle}</div>
+          <div class="tags">${tagsHTML}</div>
+        </div>
+        <div class="contact">${email}${phone ? '<br>' + phone : ''}</div>
       </div>
-      <div class="contact">${email}${phone ? '<br>' + phone : ''}</div>
     </div>
+    <div class="layout">
+      <div class="main">
+        <h2 class="section">Profil</h2>
+        <div class="summary-box"><p>${summaryText}</p></div>
+        ${stats ? `<div class="stats">
+          <div class="stat"><div class="num">${stats.years}+</div><div class="label">Ans d'exp&eacute;rience</div></div>
+          <div class="stat"><div class="num">${stats.roles}</div><div class="label">Postes</div></div>
+          <div class="stat"><div class="num">${stats.companies}</div><div class="label">Entreprises</div></div>
+          <div class="stat"><div class="num">${stats.skills}</div><div class="label">Comp&eacute;tences cl&eacute;s</div></div>
+        </div>` : ''}
+        <h2 class="section">Experience professionnelle</h2>
+        ${jobsHTML}
+      </div>
+      <div class="side">
+        <h3>Competences</h3>
+        <div class="pill-group">${skillsHTML}</div>
+        <h3>Formation</h3>
+        ${eduSideHTML}
+        ${certifications.length > 0 ? `<h3>Certifications</h3><div class="pill-group">${certifications.map(function(c) { return '<span class="pill light">' + c + '</span>'; }).join('')}</div>` : ''}
+        ${languages.length > 0 ? `<h3>Langues</h3><div class="pill-group">${languages.map(function(l) { return '<span class="pill light">' + l + '</span>'; }).join('')}</div>` : ''}
+      </div>
+    </div>
+    <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
   </div>
-  <div class="layout">
-    <div class="main">
-      <h2 class="section">Profil</h2>
-      <div class="summary-box"><p>${summaryText}</p></div>
-      ${stats ? `<div class="stats">
-        <div class="stat"><div class="num">${stats.years}+</div><div class="label">Ans d'exp&eacute;rience</div></div>
-        <div class="stat"><div class="num">${stats.roles}</div><div class="label">Postes</div></div>
-        <div class="stat"><div class="num">${stats.companies}</div><div class="label">Entreprises</div></div>
-        <div class="stat"><div class="num">${stats.skills}</div><div class="label">Comp&eacute;tences cl&eacute;s</div></div>
-      </div>` : ''}
-      <h2 class="section">Experience professionnelle</h2>
-      ${jobsHTML}
-    </div>
-    <div class="side">
-      <h3>Competences</h3>
-      <div class="pill-group">${skillsHTML}</div>
-      <h3>Formation</h3>
-      ${eduSideHTML}
-      ${certifications.length > 0 ? `<h3>Certifications</h3><div class="pill-group">${certifications.map(function(c) { return '<span class="pill light">' + c + '</span>'; }).join('')}</div>` : ''}
-      ${languages.length > 0 ? `<h3>Langues</h3><div class="pill-group">${languages.map(function(l) { return '<span class="pill light">' + l + '</span>'; }).join('')}</div>` : ''}
-    </div>
-  </div>
-  <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
 </body>
 </html>`;
 }
