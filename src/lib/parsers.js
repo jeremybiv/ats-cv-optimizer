@@ -85,7 +85,7 @@ function parseCVText(pdfText) {
         cv.name = trimmed;
         continue;
       }
-      if (!cv.summary && trimmed.length > 80) {
+      if (!cv.summary && trimmed.length > 25) {
         cv.summary = trimmed;
         continue;
       }
@@ -117,6 +117,14 @@ function parseCVText(pdfText) {
       // Split by common separators
       const skillItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
       cv.skills.push(...skillItems);
+    } else if (currentSection === 'certifications') {
+      // Split by common separators (une certif par ligne ou séparées par virgules)
+      const certItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
+      cv.certifications.push(...certItems);
+    } else if (currentSection === 'languages') {
+      // Split par virgule/point-virgule : "Français, Anglais" → 2 entrées
+      const langItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
+      cv.languages.push(...langItems);
     } else if (currentSection === 'summary') {
       cv.summary = cv.summary ? cv.summary + ' ' + trimmed : trimmed;
     }
@@ -124,6 +132,12 @@ function parseCVText(pdfText) {
 
   // Deduplicate skills
   cv.skills = [...new Set(cv.skills.map(s => s.toLowerCase()))]
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+
+  // Deduplicate certifications & languages
+  cv.certifications = [...new Set(cv.certifications.map(s => s.toLowerCase()))]
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+  cv.languages = [...new Set(cv.languages.map(s => s.toLowerCase()))]
     .map(s => s.charAt(0).toUpperCase() + s.slice(1));
 
   return cv;
