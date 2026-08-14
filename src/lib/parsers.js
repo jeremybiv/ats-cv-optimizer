@@ -38,12 +38,19 @@ function parseCVText(pdfText) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
-    // Check for section headers
+    // Check for section headers. A real header is short and standalone
+    // (e.g. "Expérience", "Formation") — without this guard, an ordinary
+    // sentence that merely mentions a keyword (e.g. "5 ans d'expérience en
+    // systèmes distribués.") gets misread as a new section and wipes out
+    // the real content that follows.
+    const looksLikeHeader = trimmed.length <= 40 && trimmed.split(/\s+/).length <= 5 && !/[.!?]$/.test(trimmed);
     let matchedSection = null;
-    for (const sh of sectionHeaders) {
-      if (sh.regex.test(trimmed)) {
-        matchedSection = sh.key;
-        break;
+    if (looksLikeHeader) {
+      for (const sh of sectionHeaders) {
+        if (sh.regex.test(trimmed)) {
+          matchedSection = sh.key;
+          break;
+        }
       }
     }
 
