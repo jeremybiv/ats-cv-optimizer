@@ -214,10 +214,41 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     }).join(' ');
   }
 
+  // Per-job "stack" line — the technologies actually mentioned in that job's
+  // own bullets, not a fabricated tag. Reuses extractKeywords's technical
+  // patterns rather than inventing a "stack" field we don't have data for.
+  function jobStack(exp) {
+    var text = (exp.description || []).join(' ');
+    if (!text) return '';
+    var kws = extractKeywords(text).technical || [];
+    return kws.slice(0, 6).map(function(k) { return k.charAt(0).toUpperCase() + k.slice(1); }).join(' · ');
+  }
+
+  // Honest, computed stats (years span / roles / companies / skills) — never
+  // fabricated numbers. Returns null when there isn't enough real data
+  // (e.g. no parseable years), in which case the stats row is simply omitted.
+  function computeStats() {
+    if (experience.length === 0) return null;
+    var years = [];
+    var currentYear = new Date().getFullYear();
+    experience.forEach(function(exp) {
+      var found = (exp.dates || '').match(/\d{4}/g);
+      if (found) years.push.apply(years, found.map(Number));
+      if (/present|actuel|aujourd|current/i.test(exp.dates || '')) years.push(currentYear);
+    });
+    if (years.length < 2) return null;
+    var span = Math.max.apply(null, years) - Math.min.apply(null, years);
+    if (span <= 0) return null;
+    var companies = new Set(experience.map(function(e) { return (e.company || '').toLowerCase(); }).filter(Boolean));
+    return { years: span, roles: experience.length, companies: companies.size, skills: prioritizedSkills.length };
+  }
+
   var expHTML = buildExpHTML();
   var eduHTML = buildEduHTML();
   var skillsHTML = buildSkillsHTML();
-  var footer = '<div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>';
+  var stats = computeStats();
+  var languages = parsedCV?.languages || [];
+  var certifications = parsedCV?.certifications || [];
 
   if (strictMode) {
     // ATS STRICT — single column, no tables/graphics, but still legible and well spaced.
@@ -229,26 +260,33 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   <title>CV - ${name}</title>
   <style>
     *{box-sizing:border-box;}
-    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:760px;margin:0 auto;padding:36px 34px 28px;color:#222;line-height:1.5;background:#fff;}
-    h1{font-size:23pt;font-weight:700;margin:0 0 4px;color:#111;}
-    .role{font-size:12pt;color:#1a56db;font-weight:600;margin:0 0 10px;}
+    :root{--ink:#1c1c1c;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}
+    body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;max-width:760px;margin:0 auto;padding:36px 34px 28px;color:var(--ink);line-height:1.55;background:#fff;}
+    h1{font-size:23pt;font-weight:700;margin:0 0 5px;color:var(--dark);}
+    .role{font-size:10.5pt;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);font-weight:600;margin:0 0 10px;}
     .contact{font-size:10pt;color:#555;margin-bottom:22px;}
     .contact span{margin-right:14px;}
-    .section{margin-bottom:20px;}
-    h2{font-size:11pt;letter-spacing:0.6px;text-transform:uppercase;color:#1a56db;margin:0 0 10px;padding-bottom:5px;border-bottom:2px solid #1a56db;}
+    .section{margin-bottom:22px;}
+    h2{font-size:11pt;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--sandline);}
     p{margin:0 0 6px;}
-    .pill{display:inline-block;font-size:9.5pt;padding:3px 10px;margin:0 6px 6px 0;border-radius:3px;background:#eef3fd;color:#1a56db;border:1px solid #d7e3fb;}
+    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:14px 16px;font-size:10.5pt;}
+    .stats{display:flex;gap:10px;margin:16px 0 4px;}
+    .stat{flex:1;text-align:center;background:var(--sand);border:1px solid var(--sandline);padding:9px 4px;}
+    .stat .num{font-size:16pt;font-weight:bold;color:var(--dark);}
+    .stat .label{font-size:7.5pt;letter-spacing:0.4px;color:var(--muted);text-transform:uppercase;}
+    .pill{display:inline-block;font-size:9.5pt;padding:3px 10px;margin:0 6px 6px 0;border-radius:3px;background:var(--sand);color:#333;border:1px solid var(--sandline);}
     ul{padding-left:18px;margin:4px 0 0;}
     li{margin-bottom:4px;font-size:10.5pt;}
     .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;}
     .exp-title{font-weight:700;font-size:11pt;}
-    .exp-date{font-weight:400;color:#666;font-size:9.5pt;white-space:nowrap;}
-    .exp-company{font-size:10pt;color:#444;margin:1px 0 5px;font-style:italic;}
+    .exp-date{font-weight:400;color:var(--muted);font-size:9.5pt;white-space:nowrap;}
+    .exp-company{font-size:10pt;color:#444;margin:1px 0 3px;font-weight:600;}
+    .exp-stack{font-size:9pt;color:var(--muted);font-style:italic;margin:0 0 5px;}
     .edu-item{margin-bottom:10px;}
     .edu-item:last-child{margin-bottom:0;}
     .meta-footer{margin-top:24px;padding-top:10px;border-top:1px solid #e5e5e5;font-size:8pt;color:#999;}
     .brand-footer{text-align:center;font-size:7.5pt;color:#999;padding-top:10px;margin-top:14px;border-top:1px solid #eee;}
-    .brand-footer a{color:#1a56db;text-decoration:none;}
+    .brand-footer a{color:var(--gold);text-decoration:none;}
   </style>
 </head>
 <body>
@@ -257,7 +295,13 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   <div class="contact"><span>${email}</span>${phone ? '<span>' + phone + '</span>' : ''}</div>
   <div class="section">
     <h2>Resume</h2>
-    <p>${summaryText}</p>
+    <div class="summary-box"><p>${summaryText}</p></div>
+    ${stats ? `<div class="stats">
+      <div class="stat"><div class="num">${stats.years}+</div><div class="label">Ans d'exp&eacute;rience</div></div>
+      <div class="stat"><div class="num">${stats.roles}</div><div class="label">Postes</div></div>
+      <div class="stat"><div class="num">${stats.companies}</div><div class="label">Entreprises</div></div>
+      <div class="stat"><div class="num">${stats.skills}</div><div class="label">Comp&eacute;tences cl&eacute;s</div></div>
+    </div>` : ''}
   </div>
   <div class="section">
     <h2>Competences</h2>
@@ -271,19 +315,51 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     <h2>Formation</h2>
     ${eduHTML}
   </div>
+  ${certifications.length > 0 ? `<div class="section">
+    <h2>Certifications</h2>
+    <p>${certifications.map(function(c) { return '<span class="pill">' + c + '</span>'; }).join(' ')}</p>
+  </div>` : ''}
+  ${languages.length > 0 ? `<div class="section">
+    <h2>Langues</h2>
+    <p>${languages.map(function(l) { return '<span class="pill">' + l + '</span>'; }).join(' ')}</p>
+  </div>` : ''}
   <div class="meta-footer">
     <p>Mots-cles: ${metaKeywords}</p>
   </div>
-  ${footer}
+  <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
 </body>
 </html>`;
   }
 
-  // DEFAULT — two-column visual template (header sombre + colonne competences, style skill CV builder)
+  // DEFAULT — two-column visual template (header sombre, colonne sable, style
+  // repris du template de reference du skill cv-ats-builder).
   var jobTitle = job?.title || 'Titre du poste vise';
   var tagsHTML = (jobKeywords?.technical || []).slice(0, 5).map(function(k) {
     return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
   }).join('');
+
+  var jobsHTML = experience.length > 0
+    ? experience.map(function(exp) {
+        var stack = jobStack(exp);
+        var h = '<div class="job">\n';
+        h += '      <div class="job-title">' + (exp.title || 'Poste') + (exp.dates ? '<span class="job-dates">' + exp.dates + '</span>' : '') + '</div>\n';
+        if (exp.company) h += '      <div class="job-company">' + exp.company + '</div>\n';
+        if (stack) h += '      <div class="job-stack">' + stack + '</div>\n';
+        if (exp.description && exp.description.length > 0) {
+          h += '      <ul class="bullets">\n' + exp.description.map(function(d) { return '        <li>' + d + '</li>'; }).join('\n') + '\n      </ul>\n';
+        }
+        h += '    </div>';
+        return h;
+      }).join('\n\n')
+    : buildExpHTML().replace(/<div class="section">/g, '<div class="job">');
+
+  var eduSideHTML = education.length > 0
+    ? education.map(function(edu) {
+        var h = '<div class="edu-item"><b>' + (edu.degree || 'Formation') + '</b>';
+        if (edu.institution || edu.dates) h += '<br><span class="edu-year">' + [edu.institution, edu.dates].filter(Boolean).join(' · ') + '</span>';
+        return h + '</div>';
+      }).join('\n')
+    : '<p>Diplome et formation pertinente.</p>';
 
   return `<!DOCTYPE html>
 <html lang="fr">
@@ -295,60 +371,78 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   <style>
     *{box-sizing:border-box;}
     :root{--ink:#1c1c1c;--paper:#fff;--sand:#f2ede3;--sandline:#e3dccb;--gold:#8a6d3b;--dark:#141414;--muted:#5b5b5b;}
-    body{margin:0 auto;max-width:210mm;font-family:Georgia,'Times New Roman',serif;color:var(--ink);font-size:13.5px;line-height:1.55;background:#fff;}
-    .header{background:var(--dark);color:#fff;padding:36px 44px 26px;}
-    .header h1{margin:0;font-size:32px;font-weight:400;letter-spacing:0.3px;}
-    .header .sub{font-size:15px;color:var(--sand);margin:4px 0 14px;font-style:italic;}
-    .tags{display:flex;flex-wrap:wrap;gap:6px;}
-    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10px;background:#2b2b2b;color:#f2ede3;padding:5px 11px;border-radius:3px;}
-    .contact-row{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#b8b8b8;margin-top:14px;display:flex;flex-wrap:wrap;gap:4px 16px;}
+    body{margin:0 auto;max-width:210mm;font-family:Georgia,'Times New Roman',serif;color:var(--ink);background:var(--paper);font-size:14px;line-height:1.5;}
+    .header{background:var(--dark);color:#fff;padding:36px 44px 30px;}
+    .header h1{margin:0;font-size:34px;letter-spacing:0.3px;font-weight:400;}
+    .header .role{font-family:Arial,Helvetica,sans-serif;letter-spacing:2.5px;font-size:11.5px;color:#cfcfcf;margin-top:6px;text-transform:uppercase;}
+    .header-flex{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;}
+    .contact{font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#d8d8d8;text-align:right;line-height:1.8;white-space:nowrap;}
+    .tags{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;}
+    .tag{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;background:#2b2b2b;color:var(--sand);padding:5px 11px;border-radius:3px;}
     .layout{display:flex;flex-wrap:wrap;}
-    .main{flex:1 1 62%;min-width:280px;padding:26px 30px 30px 44px;}
-    .side{flex:1 1 34%;min-width:220px;background:var(--sand);padding:26px 28px 30px;border-left:1px solid var(--sandline);}
-    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:6px;margin:0 0 12px;}
-    .main h2.section{margin-top:26px;}
-    .main h2.section:first-child{margin-top:0;}
-    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:15px 18px;font-size:13px;}
+    .main{flex:1 1 62%;min-width:280px;padding:28px 32px 30px 44px;}
+    .side{flex:1 1 34%;min-width:220px;background:var(--sand);padding:28px 28px 32px;border-left:1px solid var(--sandline);}
+    h2.section{font-family:Arial,Helvetica,sans-serif;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold);border-bottom:1px solid var(--sandline);padding-bottom:6px;margin:26px 0 12px;}
+    h2.section:first-child{margin-top:0;}
+    .summary-box{background:var(--sand);border-left:3px solid var(--gold);padding:15px 18px;font-size:13.5px;}
     .summary-box p{margin:0;}
-    .exp-block{margin-bottom:18px;}
-    .exp-block:last-child{margin-bottom:0;}
-    .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;}
-    .exp-title{font-size:14.5px;font-weight:bold;}
-    .exp-company{font-size:12.5px;color:var(--gold);margin:2px 0 5px;font-family:Arial,Helvetica,sans-serif;}
-    .exp-date{font-size:11.5px;color:var(--muted);font-family:Arial,Helvetica,sans-serif;white-space:nowrap;}
-    .pill-wrap{display:flex;flex-wrap:wrap;gap:6px;}
-    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10px;padding:4px 9px;border-radius:2px;line-height:1.3;}
+    .stats{display:flex;gap:10px;margin:16px 0 4px;}
+    .stat{flex:1;text-align:center;background:var(--sand);border:1px solid var(--sandline);padding:10px 4px;}
+    .stat .num{font-size:19px;font-weight:bold;color:var(--dark);font-family:Arial,Helvetica,sans-serif;}
+    .stat .label{font-family:Arial,Helvetica,sans-serif;font-size:9px;letter-spacing:0.4px;color:var(--muted);text-transform:uppercase;}
+    .job{margin-bottom:20px;}
+    .job:last-child{margin-bottom:0;}
+    .job-title{font-size:15px;font-weight:bold;display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 10px;}
+    .job-dates{font-family:Arial,Helvetica,sans-serif;font-size:11.5px;color:var(--muted);font-weight:normal;white-space:nowrap;}
+    .job-company{font-family:Arial,Helvetica,sans-serif;font-weight:bold;color:var(--gold);margin-top:2px;font-size:12.5px;}
+    .job-stack{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:var(--muted);margin:4px 0 6px;font-style:italic;}
+    ul.bullets{margin:5px 0 0;padding-left:17px;}
+    ul.bullets li{margin-bottom:5px;font-size:13px;}
+    .side h3{font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:1.2px;text-transform:uppercase;color:var(--gold);margin:20px 0 8px;border-bottom:1px solid var(--sandline);padding-bottom:4px;}
+    .side h3:first-child{margin-top:0;}
+    .pill-group{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;}
+    .pill{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;padding:4px 9px;border-radius:2px;line-height:1.3;}
     .pill.dark{background:var(--dark);color:#fff;}
     .pill.light{background:#fff;border:1px solid var(--sandline);color:#333;}
-    ul{padding-left:17px;margin:5px 0 0;}
-    li{margin-bottom:4px;font-size:12.5px;}
-    .edu-item{margin-bottom:12px;}
+    .edu-item{margin-bottom:10px;font-size:12.8px;}
     .edu-item:last-child{margin-bottom:0;}
-    .side .exp-title{font-size:13px;}
+    .edu-year{font-family:Arial,Helvetica,sans-serif;font-size:10.5px;color:var(--muted);}
     .brand-footer{text-align:center;font-family:Arial,Helvetica,sans-serif;font-size:9.5px;color:#999;padding:12px 0;border-top:1px solid var(--sandline);}
     .brand-footer a{color:var(--gold);text-decoration:none;}
-    @media print{.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}
+    @media print{body{font-size:12.5px;}.layout{display:block;}.side{border-left:none;border-top:1px solid var(--sandline);}}
   </style>
 </head>
 <body>
   <div class="header">
-    <h1>${name}</h1>
-    <div class="sub">${jobTitle}</div>
-    <div class="tags">${tagsHTML}</div>
-    <div class="contact-row"><span>${email}</span>${phone ? '<span>' + phone + '</span>' : ''}</div>
+    <div class="header-flex">
+      <div>
+        <h1>${name}</h1>
+        <div class="role">${jobTitle}</div>
+        <div class="tags">${tagsHTML}</div>
+      </div>
+      <div class="contact">${email}${phone ? '<br>' + phone : ''}</div>
+    </div>
   </div>
   <div class="layout">
     <div class="main">
       <h2 class="section">Profil</h2>
       <div class="summary-box"><p>${summaryText}</p></div>
+      ${stats ? `<div class="stats">
+        <div class="stat"><div class="num">${stats.years}+</div><div class="label">Ans d'exp&eacute;rience</div></div>
+        <div class="stat"><div class="num">${stats.roles}</div><div class="label">Postes</div></div>
+        <div class="stat"><div class="num">${stats.companies}</div><div class="label">Entreprises</div></div>
+        <div class="stat"><div class="num">${stats.skills}</div><div class="label">Comp&eacute;tences cl&eacute;s</div></div>
+      </div>` : ''}
       <h2 class="section">Experience professionnelle</h2>
-      ${expHTML.replace(/<div class="section">/g, '<div class="exp-block">')}
+      ${jobsHTML}
     </div>
     <div class="side">
-      <h2 class="section">Competences</h2>
-      <div class="pill-wrap" style="margin-bottom:22px;">${skillsHTML}</div>
-      <h2 class="section">Formation</h2>
-      ${eduHTML}
+      <h3>Competences</h3>
+      <div class="pill-group">${skillsHTML}</div>
+      <h3>Formation</h3>
+      ${eduSideHTML}
+      ${certifications.length > 0 ? `<h3>Certifications</h3><div class="pill-group">${certifications.map(function(c) { return '<span class="pill light">' + c + '</span>'; }).join('')}</div>` : ''}
+      ${languages.length > 0 ? `<h3>Langues</h3><div class="pill-group">${languages.map(function(l) { return '<span class="pill light">' + l + '</span>'; }).join('')}</div>` : ''}
     </div>
   </div>
   <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
