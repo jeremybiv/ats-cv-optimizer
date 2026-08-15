@@ -3,6 +3,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useState } from 'react';
+import SiteFooter from '../src/components/SiteFooter';
 
 const features = [
   {
@@ -343,12 +344,7 @@ export default function LandingPage() {
         </Container>
       </Box>
 
-      {/* Footer */}
-      <Box sx={{ bgcolor: '#fff', borderTop: '1px solid #e0e0e0', py: 3, textAlign: 'center' }}>
-        <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
-          Propulsé par Prospimmo
-        </Typography>
-      </Box>
+      <SiteFooter />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{

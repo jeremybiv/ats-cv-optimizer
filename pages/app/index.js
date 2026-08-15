@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Head from 'next/head';
+import Link from 'next/link';
+import SiteFooter from '../../src/components/SiteFooter';
 import {
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
@@ -1030,10 +1032,12 @@ ${result.html}
 
         <Box sx={{ textAlign: 'center', mt: 6, mb: 2 }}>
           <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
-            Prospecho · Propulsé par Prospimmo · Les données ne sont pas stockées
+            Prospecho · Propulsé par Prospimmo ·{' '}
+            <Link href="/confidentialite" style={{ color: 'inherit' }}>Confidentialité</Link>
           </Typography>
         </Box>
       </Container>
+      <SiteFooter />
 
       {/* Before/After Compare Dialog */}
       <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>

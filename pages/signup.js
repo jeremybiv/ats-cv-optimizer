@@ -70,6 +70,11 @@ export default function Signup() {
                 sx={{ borderRadius: '28px', textTransform: 'none', bgcolor: '#1a73e8', py: 1.2 }}>
                 {loading ? 'Création...' : 'Créer mon compte'}
               </Button>
+              <Typography variant="caption" sx={{ color: '#9aa0a6', display: 'block', textAlign: 'center', mt: 1.5 }}>
+                En créant un compte, tu acceptes nos{' '}
+                <Link href="/cgu" style={{ color: '#5f6368' }}>CGU</Link> et notre{' '}
+                <Link href="/confidentialite" style={{ color: '#5f6368' }}>politique de confidentialité</Link>.
+              </Typography>
             </form>
           )}
           <Box sx={{ textAlign: 'center', mt: 2 }}>
