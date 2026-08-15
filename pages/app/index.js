@@ -1,6 +1,9 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
-import { 
+import Head from 'next/head';
+import Link from 'next/link';
+import SiteFooter from '../../src/components/SiteFooter';
+import {
   Container, Box, Typography, Button, TextField, Paper, 
   LinearProgress, Chip, Grid, IconButton, Alert, Snackbar,
   Card, CircularProgress, Divider, Avatar, Menu, MenuItem, Dialog,
@@ -635,6 +638,12 @@ ${result.html}
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: '#f8f9fa' }}>
+      <Head>
+        <title>Générer mon CV ATS-proof | Prospecho</title>
+        <meta name="description" content="Importe ton CV ou ton profil LinkedIn, colle une offre d'emploi tech et genere un CV optimise pour les ATS des grands groupes en Suisse et a l'international." />
+        <meta name="robots" content="index, follow" />
+        <link rel="canonical" href="https://prospecho.fr/app" />
+      </Head>
       {/* Header */}
       <Box sx={{ bgcolor: '#fff', borderBottom: '1px solid #e0e0e0', py: 1.5, px: { xs: 2, md: 4 } }}>
         <Container maxWidth="lg" sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -1024,10 +1033,12 @@ ${result.html}
 
         <Box sx={{ textAlign: 'center', mt: 6, mb: 2 }}>
           <Typography variant="caption" sx={{ color: '#9aa0a6' }}>
-            Prospecho · Propulsé par Prospimmo · Les données ne sont pas stockées
+            Prospecho · Propulsé par Prospimmo ·{' '}
+            <Link href="/confidentialite" style={{ color: 'inherit' }}>Confidentialité</Link>
           </Typography>
         </Box>
       </Container>
+      <SiteFooter />
 
       {/* Before/After Compare Dialog */}
       <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>

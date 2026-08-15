@@ -1,4 +1,27 @@
 User-agent: *
 Allow: /
 
+# GEO: explicitly welcome the major AI answer-engine crawlers so the site's
+# content (CV/ATS advice, FAQ) can be read and cited by generative search —
+# the wildcard rule above already allows this, these are just unambiguous
+# per-bot signals for engines that check by name rather than falling back
+# to '*'.
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
 Sitemap: https://prospecho.fr/sitemap.xml
