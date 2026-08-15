@@ -1,5 +1,5 @@
 import Head from 'next/head';
-import { Container, Box, Typography, Alert } from '@mui/material';
+import { Container, Box, Typography } from '@mui/material';
 import SimpleHeader from '../src/components/SimpleHeader';
 import SiteFooter from '../src/components/SiteFooter';
 
@@ -30,23 +30,16 @@ export default function MentionsLegales() {
           Dernière mise à jour : 15 août 2026
         </Typography>
 
-        <Alert severity="info" sx={{ mb: 4, borderRadius: 2 }}>
-          Les champs entre crochets ci-dessous doivent être complétés avec les informations légales
-          exactes de la structure exploitant Prospecho (raison sociale, forme juridique, numéro
-          d&apos;immatriculation, adresse du siège) avant publication définitive du site. Ces informations
-          n&apos;ont pas été inventées : elles doivent provenir de l&apos;éditeur lui-même.
-        </Alert>
-
         <Section title="Éditeur du site">
           Le site Prospecho (accessible à l&apos;adresse https://prospecho.fr) est édité par :
           <Box component="ul" sx={{ mt: 1, pl: 3 }}>
-            <li>Raison sociale / nom du responsable de publication : [à compléter]</li>
-            <li>Forme juridique : [à compléter, ex. entreprise individuelle, SASU, etc.]</li>
-            <li>Numéro d&apos;immatriculation (SIREN/SIRET) : [à compléter]</li>
-            <li>Adresse du siège : [à compléter]</li>
+            <li>Raison sociale : ALMA HORIZON</li>
+            <li>Forme juridique : SAS au capital de 1 000 €</li>
+            <li>RCS : Bourg-en-Bresse — SIREN 102 400 868</li>
+            <li>Siège social : 331 rue des Faneurs, 01170 Gex, France</li>
             <li>Contact : Jeremy.bivaud@gmail.com</li>
           </Box>
-          Prospecho est un produit édité sous la marque Prospimmo.
+          Prospecho est un produit édité par ALMA HORIZON sous la marque Prospimmo.
         </Section>
 
         <Section title="Directeur de la publication">
@@ -54,8 +47,9 @@ export default function MentionsLegales() {
         </Section>
 
         <Section title="Hébergement">
-          Le site est hébergé par Vercel Inc. (https://vercel.com). La base de données applicative
-          (comptes utilisateurs, CV générés, CV partagés) est hébergée chez Neon / Vercel Postgres.
+          Le site est hébergé par Vercel Inc., 340 S Lemon Ave #4133, Walnut, CA 91789, États-Unis
+          (https://vercel.com). La base de données applicative (comptes utilisateurs, CV générés, CV
+          partagés) est hébergée chez Neon / Vercel Postgres.
         </Section>
 
         <Section title="Propriété intellectuelle">
