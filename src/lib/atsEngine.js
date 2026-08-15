@@ -397,7 +397,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     }
     *{box-sizing:border-box;}
     body{margin:0;background:#e9edf1;font-family:'Inter','Segoe UI',Helvetica,Arial,sans-serif;color:var(--ink);font-size:13.6px;line-height:1.55;}
-    .page{max-width:1000px;margin:24px auto;background:#fff;box-shadow:0 2px 18px rgba(11,31,51,0.14);}
+    .page{max-width:210mm;margin:24px auto;background:#fff;box-shadow:0 2px 18px rgba(11,31,51,0.14);}
     .date,.stack{font-family:ui-monospace,'SFMono-Regular',Consolas,'Courier New',monospace;}
     .header{background:var(--navy);background-image:linear-gradient(115deg,#0b1f33 0%,#0b1f33 58%,#143a63 100%);color:#fff;padding:34px 44px 28px;border-bottom:4px solid var(--blue);}
     .header h1{margin:0;font-size:38px;font-weight:800;letter-spacing:-1px;line-height:1.05;}

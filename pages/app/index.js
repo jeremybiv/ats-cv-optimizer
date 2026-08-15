@@ -374,13 +374,21 @@ export default function Home() {
         element.innerHTML = result.html;
         element.style.padding = '20px';
         element.style.background = '#fff';
-        element.style.width = '210mm';
+        // Fixed px width (not '210mm'): html2canvas renders at a CSS pixel
+        // width, and mixing mm with its internal windowWidth math previously
+        // made the canvas narrower than the element's own layout — content
+        // (contact block, stat tiles, skill pills...) got silently cropped
+        // off the right edge of the exported PDF instead of wrapping.
+        // windowWidth gives the layout a bit more room than the element's
+        // own width so flex rows (header contact, stats bar) have space to
+        // lay out without overflowing the capture area.
+        element.style.width = '800px';
         document.body.appendChild(element);
         const opt = {
           margin:       0.5,
           filename:     'cv_optimise_ats.pdf',
           image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true },
+          html2canvas:  { scale: 2, useCORS: true, windowWidth: 840, width: 840 },
           jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
         await window.html2pdf().set(opt).from(element).save();
