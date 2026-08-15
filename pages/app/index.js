@@ -389,7 +389,8 @@ export default function Home() {
           filename:     'cv_optimise_ats.pdf',
           image:        { type: 'jpeg', quality: 0.98 },
           html2canvas:  { scale: 2, useCORS: true, windowWidth: 840, width: 840 },
-          jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' }
+          jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
+          pagebreak:    { mode: ['css', 'legacy'] }  // sauts de page intelligents (multi-pages propres)
         };
         await window.html2pdf().set(opt).from(element).save();
         document.body.removeChild(element);
