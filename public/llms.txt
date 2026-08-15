@@ -1,0 +1,38 @@
+# Prospecho
+
+> Prospecho génère un CV optimisé pour les ATS (Applicant Tracking Systems) à partir d'un CV existant
+> (PDF ou profil LinkedIn) et d'une offre d'emploi. Il cible en priorité les profils tech — développeurs,
+> data, product, cloud, DevOps, cybersécurité, IT — qui postulent en Suisse ou à l'international, en CDI
+> comme en freelance ou mission courte, auprès de grands groupes utilisant des ATS stricts (Workday,
+> Taleo, SuccessFactors, iCIMS).
+
+## Ce que fait le produit
+
+- Analyse l'offre d'emploi et en extrait les mots-clés (compétences techniques, soft skills, séniorité,
+  domaine).
+- Repositionne honnêtement le contenu du CV existant autour de ces mots-clés, sans inventer d'expérience,
+  de compétence ou de certification que le candidat n'a pas.
+- Calcule un score de correspondance CV/offre en temps réel.
+- Génère deux formats de sortie : un template visuel deux-colonnes pour un lecteur humain, et un template
+  ATS Strict une-colonne sans tableaux/images pour maximiser la compatibilité avec les ATS les plus stricts.
+- Exporte en HTML, PDF ou Word ; permet de partager le CV via un lien.
+
+## Public cible
+
+Professionnels tech de 20 à 45 ans en recherche d'emploi (CDI) ou de mission (freelance, contrat court),
+en particulier ceux visant des entreprises au processus de recrutement exigeant (multinationales, banques,
+assurances, pharma, scale-ups tech) en Suisse (Genève, Lausanne, Zurich) et en France.
+
+## Tarifs
+
+- Gratuit : 2 CV optimisés par mois.
+- Pro : 1,50€ par CV, sans limite mensuelle.
+
+## Pages
+
+- [Accueil](https://prospecho.fr/) — présentation, tarifs, FAQ.
+- [Application](https://prospecho.fr/app) — génération de CV (upload CV/LinkedIn, offre, export).
+
+## Contact
+
+Jeremy.bivaud@gmail.com
