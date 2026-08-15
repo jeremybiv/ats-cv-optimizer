@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../src/lib/auth';
 import { extractJobDescription } from '../../src/lib/jobFetcher';
-import { parseTextFromBase64 } from '../../src/lib/parsers';
+import { parseTextFromBase64, parseCVText } from '../../src/lib/parsers';
 import { extractKeywords, scoreCV, generateOptimizedCV, formatCVHTML } from '../../src/lib/atsEngine';
 import { findUserByEmail, getUserUsage, incrementUsage } from '../../src/lib/db';
 
@@ -76,7 +76,9 @@ export default async function handler(req, res) {
         education: [],
       };
     } else if (cvText) {
-      parsedCV = { text: cvText, name: '', email: '', phone: '', summary: '', skills: [], experience: [], education: [] };
+      // Extrait nom, email, expériences, formation et compétences depuis le texte
+      // brut du CV (PDF ou saisie manuelle) au lieu de partir d'un objet vide.
+      parsedCV = { ...parseCVText(cvText), text: cvText };
     }
 
     const cvScore = cvText ? scoreCV(cvText, keywords) : { matchScore: 0, keywordCount: 0, missingCount: 0, structureScore: 70, foundKeywords: [] };
