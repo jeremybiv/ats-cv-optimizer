@@ -273,7 +273,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     .section{margin-bottom:26px;}
     h2{font-size:11.5pt;letter-spacing:0.8px;text-transform:uppercase;color:var(--gold);font-weight:700;margin:0 0 12px;padding-bottom:7px;border-bottom:2px solid var(--sandline);}
     p{margin:0 0 6px;}
-    .summary-box{background:var(--sand);border-radius:10px;border-left:4px solid var(--gold);padding:16px 18px;font-size:11pt;}
+    .summary-box{background:var(--sand);border-radius:10px;border-left:4px solid var(--gold);padding:16px 18px;font-size:11pt;break-inside:avoid;page-break-inside:avoid;}
     .stats{display:flex;gap:10px;margin:18px 0 4px;}
     .stat{flex:1;text-align:center;background:var(--sand);border-radius:10px;padding:12px 6px;}
     .stat .num{font-size:17pt;font-weight:bold;color:var(--dark);}
@@ -285,10 +285,10 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     .exp-date{font-weight:500;color:var(--muted);font-size:10pt;white-space:nowrap;}
     .exp-company{font-size:10.5pt;color:var(--gold);margin:2px 0 4px;font-weight:600;}
     .exp-stack{font-size:9.5pt;color:var(--muted);font-style:italic;margin:0 0 6px;}
-    .exp-item{margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid #f0ede6;}
+    .exp-item{margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid #f0ede6;break-inside:avoid;page-break-inside:avoid;}
     .exp-item:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
     .exp-header{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:4px 12px;}
-    .edu-item{margin-bottom:12px;}
+    .edu-item{margin-bottom:12px;break-inside:avoid;page-break-inside:avoid;}
     .edu-item:last-child{margin-bottom:0;}
     .meta-footer{margin-top:26px;padding-top:12px;border-top:1px solid #eee;font-size:8.5pt;color:#a39d94;}
     .brand-footer{text-align:center;font-size:8.5pt;color:#a39d94;padding-top:12px;margin-top:16px;border-top:1px solid #eee;}
@@ -416,8 +416,8 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     .side{flex:0 0 34%;background:var(--grey);border-left:1px solid var(--line);padding:26px 32px 38px 26px;}
     h2.section{font-size:11.5px;font-weight:800;letter-spacing:2px;text-transform:uppercase;color:var(--blue);margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid var(--line);}
     .main h2.section:first-child,.side h2.section:first-child{margin-top:0;}
-    .summary{background:var(--blue-soft);border-left:4px solid var(--blue);padding:14px 16px;font-size:13.4px;color:var(--slate);border-radius:0 3px 3px 0;margin:0;}
-    .job{padding:0 0 4px;margin-bottom:18px;border-left:2px solid var(--line);padding-left:16px;position:relative;}
+    .summary{background:var(--blue-soft);border-left:4px solid var(--blue);padding:14px 16px;font-size:13.4px;color:var(--slate);border-radius:0 3px 3px 0;margin:0;break-inside:avoid;page-break-inside:avoid;}
+    .job{padding:0 0 4px;margin-bottom:18px;border-left:2px solid var(--line);padding-left:16px;position:relative;break-inside:avoid;page-break-inside:avoid;}
     .job:last-child{margin-bottom:0;}
     .job::before{content:"";position:absolute;left:-6px;top:6px;width:10px;height:10px;background:var(--blue);border-radius:50%;border:2px solid #fff;}
     .job-title{font-size:15px;font-weight:700;margin:0;}
@@ -432,7 +432,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     .pills{display:flex;flex-wrap:wrap;gap:6px;}
     .pill{font-size:11px;padding:4px 9px;border-radius:3px;background:#fff;border:1px solid var(--line);color:#26364a;}
     .pill.key{background:var(--navy);color:#fff;border-color:var(--navy);font-weight:600;}
-    .edu{margin-bottom:12px;}
+    .edu{margin-bottom:12px;break-inside:avoid;page-break-inside:avoid;}
     .edu strong{display:block;font-size:13px;}
     .edu span{font-size:11.8px;color:var(--muted);}
     .lang{font-size:12.4px;padding:3px 0;border-bottom:1px dotted var(--line);}
