@@ -202,7 +202,9 @@ function parseJobDescription(jobText) {
 async function parseTextFromBase64(base64) {
   if (!base64) return '';
   try {
-    const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
+    // pdfjs-dist 3.x : version CommonJS native — fiable en Vercel serverless
+    // (la 4.x est ESM-only (.mjs) et son import dynamique échoue en prod)
+    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
     const buffer = Buffer.from(base64, 'base64');
     // Nécessaire en prod (Vercel serverless) : sans standardFontDataUrl,
     // pdfjs-dist ne trouve pas les polices standard et échoue → le fallback
@@ -219,7 +221,7 @@ async function parseTextFromBase64(base64) {
     } catch {
       standardFontDataUrl = undefined;
     }
-    const pdf = await getDocument({
+    const pdf = await pdfjs.getDocument({
       data: new Uint8Array(buffer),
       ...(standardFontDataUrl ? { standardFontDataUrl } : {}),
     }).promise;
