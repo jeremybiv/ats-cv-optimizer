@@ -29,25 +29,125 @@ function parseCVText(pdfText) {
   // keyword as a substring (e.g. "bac" inside "backend", "lang" inside
   // "language model" in a skills line).
   const sectionHeaders = [
-    { regex: /\b(experience|emploi|travail|career|work|professional)\b/i, key: 'experience' },
+    { regex: /\b(experience|emploi|travail|career|work|professional|missions?|projets?|realisations?)\b/i, key: 'experience' },
     { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
     { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
     { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
     { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
     { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
+    // Liens/reseaux ne sont jamais une liste de contenu a conserver telle
+    // quelle (juste des pointeurs externes) - les reconnaitre comme un
+    // en-tete ferme la section precedente au lieu de laisser une URL
+    // github.com/... continuer a s'empiler dedans (ex: juste apres
+    // "Langues", un bloc "Social" + une URL ne sont pas des langues).
+    { regex: /\b(social|reseaux|liens|portfolio)\b/i, key: 'links' },
   ];
+
+  // Reperage d'une ligne "dates de mission", quel que soit le format
+  // ("Janvier a fevrier 2022", "2019 - 2020", "Mars 2018 a present"...).
+  const MONTHS = 'janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|january|february|march|april|may|june|july|august|september|october|november|december';
+  const DATE_RANGE_RE = new RegExp(
+    '(?:' +
+      // "Month? Year (a|\u00e0|-|to) Month? (Year|pr\u00e9sent...)" \u2014 e.g. "2019 - 2020",
+      // "Janvier 2022 \u00e0 mars 2023", "Mars 2018 \u00e0 pr\u00e9sent".
+      '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|\u00e0|-|\u2013|\u2014|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|pr\u00e9sent|actuel|aujourd|current|now)' +
+      '|' +
+      // "Month (a|\u00e0|-|to) Month Year" \u2014 French idiom sharing one trailing
+      // year, e.g. "Juin \u00e0 juillet 2021", "Avril \u00e0 d\u00e9cembre 2022".
+      '\\b(?:' + MONTHS + ')\\b\\s*(?:a|\u00e0|-|\u2013|\u2014|to)\\s*\\b(?:' + MONTHS + ')\\b\\s*\\b(?:19|20)\\d{2}\\b' +
+    ')',
+    'i'
+  );
+
+  // Les 2-3 dernieres lignes "brutes" vues, avec (si elles ont ete rangees
+  // quelque part) le tableau + les items qu'elles y ont ajoutes - pour
+  // pouvoir les recuperer si une ligne de dates revele apres coup qu'elles
+  // etaient en fait le nom d'une entreprise / un intitule de poste egares
+  // dans la mauvaise section (typiquement "Langues") plutot que de la
+  // vraie donnee de cette section.
+  const recent = [];
+  function trackRaw(text, arr, items) {
+    recent.push({ text, arr: arr || null, items: items || null });
+    if (recent.length > 3) recent.shift();
+  }
+  function reclaim(text) {
+    for (const r of recent) {
+      if (r.text === text && r.arr && r.items) {
+        for (const it of r.items) {
+          const idx = r.arr.lastIndexOf(it);
+          if (idx !== -1) r.arr.splice(idx, 1);
+        }
+        r.arr = null; // ne pas reclaim deux fois la meme ligne
+      }
+    }
+  }
+  function pushTracked(arr, text, items) {
+    arr.push(...items);
+    trackRaw(text, arr, items);
+  }
+
+  // Une ligne de dates hors d'une entree "experience" deja ouverte demarre
+  // une nouvelle mission - on va chercher le nom d'entreprise / intitule
+  // dans les 1-2 lignes precedentes (le format le plus courant sur un CV
+  // freelance est "Entreprise" / "Lieu - Poste" / "Mois annee a mois annee"),
+  // et on les retire de la ou elles avaient ete (mal) rangees.
+  function startExperienceFromDateLine(dateLine) {
+    const prev1 = recent.length > 0 ? recent[recent.length - 1].text : '';
+    const prev2 = recent.length > 1 ? recent[recent.length - 2].text : '';
+    let company = '';
+    let title = '';
+    // popOrder holds exactly the raw lines actually consumed into
+    // title/company, most-recent-first - i.e. in the same order they'd
+    // appear at the tail of a preceding item's `description` if they'd
+    // leaked in there before this recovery kicked in.
+    const popOrder = [];
+    if (prev1 && /[\u2014\u2013-]/.test(prev1) && prev1.length <= 70) {
+      title = prev1;
+      company = prev2 && prev2.length <= 50 ? prev2 : '';
+      popOrder.push(prev1);
+      if (company) popOrder.push(prev2);
+    } else {
+      company = prev1 || '';
+      if (company) popOrder.push(prev1);
+    }
+    if (title) reclaim(prev1);
+    if (company) reclaim(company === prev1 ? prev1 : prev2);
+    // Si les lignes qu'on vient de recuperer avaient deja ete ajoutees en
+    // description du job precedent (avant qu'on comprenne qu'elles
+    // appartenaient au suivant - un en-tete n'a pas toujours suspendu la
+    // section entre-temps), on les retire pour eviter le doublon. On ne
+    // depile jamais plus que ce qui a reellement ete consomme ci-dessus,
+    // et seulement si ca correspond exactement, dans l'ordre - pour ne
+    // jamais toucher a du contenu legitime qui precede.
+    let popIdx = 0;
+    while (
+      currentItem && currentItem.description && currentItem.description.length > 0 &&
+      popIdx < popOrder.length
+    ) {
+      const last = currentItem.description[currentItem.description.length - 1];
+      if (last === popOrder[popIdx]) {
+        currentItem.description.pop();
+        popIdx++;
+      } else {
+        break;
+      }
+    }
+    currentItem = { title, company, dates: dateLine, description: [] };
+    cv.experience.push(currentItem);
+    currentSection = 'experience';
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
     // Check for section headers. A real header is short and standalone
-    // (e.g. "Expérience", "Formation") — without this guard, an ordinary
-    // sentence that merely mentions a keyword (e.g. "5 ans d'expérience en
-    // systèmes distribués.") gets misread as a new section and wipes out
+    // (e.g. "Experience", "Formation") - without this guard, an ordinary
+    // sentence that merely mentions a keyword (e.g. "5 ans d'experience en
+    // systemes distribues.") gets misread as a new section and wipes out
     // the real content that follows.
-    // Normalise les accents pour matcher "Expérience" → "experience",
-    // "Compétences" → "competences" (regex sans accents).
+    // Normalise les accents pour matcher "Experience" -> "experience",
+    // "Competences" -> "competences" (regex sans accents).
     const normalized = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const looksLikeHeader = trimmed.length <= 40 && trimmed.split(/\s+/).length <= 5 && !/[.!?]$/.test(trimmed);
     let matchedSection = null;
@@ -69,6 +169,7 @@ function parseCVText(pdfText) {
         currentItem = { degree: '', institution: '', dates: '', description: [] };
         cv.education.push(currentItem);
       }
+      trackRaw(trimmed);
       continue;
     }
 
@@ -77,30 +178,53 @@ function parseCVText(pdfText) {
       const emailMatch = trimmed.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
       if (emailMatch && !cv.email) {
         cv.email = emailMatch[1];
+        trackRaw(trimmed);
         continue;
       }
       const phoneMatch = trimmed.match(/(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
       if (phoneMatch && !cv.phone) {
         cv.phone = phoneMatch[0];
+        trackRaw(trimmed);
         continue;
       }
       if (!cv.name && !emailMatch && !phoneMatch && trimmed.length < 60) {
         cv.name = trimmed;
+        trackRaw(trimmed);
         continue;
       }
       if (!cv.summary && trimmed.length > 25) {
         cv.summary = trimmed;
+        trackRaw(trimmed);
         continue;
       }
     }
 
+    // Une ligne de dates qui n'est pas la premiere date de l'entree
+    // "experience" en cours (ou qui apparait hors de la section experience)
+    // signale une nouvelle mission - quelle que soit la section "courante"
+    // au moment ou le state machine (mal informe par des en-tetes absents
+    // ou un texte extrait en ordre de colonnes melange) pensait se trouver.
+    // Sans ce filet, tout le reste du CV apres le dernier en-tete reconnu
+    // (typiquement "Langues") finit empile comme un bloc de texte plat
+    // dans cette meme section.
+    // "education" est explicitement exclue : ses propres dates de diplome
+    // sont deja gerees par la branche degreeMatch/hyphenEduMatch ci-dessous
+    // et ne doivent jamais etre reinterpretees comme une nouvelle mission.
+    const skipDateRecovery = currentSection === 'education'
+      || (currentSection === 'experience' && currentItem && !currentItem.dates);
+    if (DATE_RANGE_RE.test(trimmed) && !skipDateRecovery) {
+      startExperienceFromDateLine(trimmed);
+      trackRaw(trimmed);
+      continue;
+    }
+
     // Fill based on current section
     if (currentSection === 'experience') {
-      // A "Company | Title" line always starts a new job entry — a CV section
+      // A "Company | Title" line always starts a new job entry - a CV section
       // usually lists several jobs under one "Experience" header, so without
       // this a second job would get folded into the first one's description.
-      const companyMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      // French CVs often use "Title - Company (year)" with a plain hyphen —
+      const companyMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
+      // French CVs often use "Title - Company (year)" with a plain hyphen -
       // detect those too (hyphen must have spaces + end with a year in parens,
       // so "full-stack" or prose lines are NOT mistaken for a job header).
       const hyphenJobMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
@@ -126,8 +250,8 @@ function parseCVText(pdfText) {
         currentItem.description.push(trimmed);
       }
     } else if (currentSection === 'education') {
-      const degreeMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      // French CVs: "Diploma - Institution (year)" — detect with plain hyphen
+      const degreeMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
+      // French CVs: "Diploma - Institution (year)" - detect with plain hyphen
       const hyphenEduMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
       const newEdu = (degreeMatch || hyphenEduMatch) && (!currentItem || currentItem.institution);
       if (newEdu) {
@@ -152,19 +276,28 @@ function parseCVText(pdfText) {
       }
     } else if (currentSection === 'skills') {
       // Split by common separators
-      const skillItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
-      cv.skills.push(...skillItems);
+      const skillItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
+      pushTracked(cv.skills, trimmed, skillItems);
     } else if (currentSection === 'certifications') {
-      // Split by common separators (une certif par ligne ou séparées par virgules)
-      const certItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
-      cv.certifications.push(...certItems);
+      // Split by common separators (une certif par ligne ou separees par virgules)
+      const certItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
+      pushTracked(cv.certifications, trimmed, certItems);
     } else if (currentSection === 'languages') {
-      // Split par virgule/point-virgule : "Français, Anglais" → 2 entrées
-      const langItems = trimmed.split(/[,;•|]/).map(s => s.trim()).filter(Boolean);
-      cv.languages.push(...langItems);
+      // Split par virgule/point-virgule : "Francais, Anglais" -> 2 entrees
+      const langItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
+      pushTracked(cv.languages, trimmed, langItems);
     } else if (currentSection === 'summary') {
       cv.summary = cv.summary ? cv.summary + ' ' + trimmed : trimmed;
+      trackRaw(trimmed);
+      continue;
+    } else {
+      // currentSection === 'links' (or none yet): intentionally not stored
+      // anywhere - only kept in `recent` so a later date line can still
+      // recover it as a company/role if it turns out to be one.
+      trackRaw(trimmed);
+      continue;
     }
+    trackRaw(trimmed);
   }
 
   // Deduplicate skills
@@ -188,10 +321,51 @@ function parseCVText(pdfText) {
 function parseJobDescription(jobText) {
   return {
     rawText: jobText,
-    title: '',
+    title: extractJobTitle(jobText),
     company: '',
     description: jobText,
   };
+}
+
+/**
+ * Best-effort job title extraction from a pasted/fetched job description.
+ * Never fabricates a title — returns '' when nothing title-like can be
+ * found, so callers can simply omit the "titre du poste" line instead of
+ * falling back to a literal placeholder ("Titre du poste visé") that used
+ * to leak straight into the generated CV whenever this returned nothing.
+ * @param {string} jobText
+ * @returns {string}
+ */
+function extractJobTitle(jobText) {
+  if (!jobText || typeof jobText !== 'string') return '';
+  const lines = jobText.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return '';
+
+  // Explicit "Poste : X" / "Job title: X" style metadata lines — job boards
+  // and copy-pasted postings often put one near the top.
+  const labelRe = /^(poste|intitule du poste|titre du poste|job title|position|role)\s*[:\-–]\s*(.{3,90})$/i;
+  for (const line of lines.slice(0, 15)) {
+    const normalized = line.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const m = normalized.match(labelRe);
+    if (m) return line.slice(line.search(/[:\-–]/) + 1).trim().replace(/^[:\-–]\s*/, '').replace(/[.,;]+$/, '');
+  }
+
+  // "Nous recherchons un(e) X" / "X recrute un(e) Y" style opening sentences.
+  const seekingRe = /\b(?:recherch(?:e|ons|e activement)|recrut(?:e|ons))\s+(?:un|une|des)?\s*([a-zA-ZÀ-ÿ0-9 /\-&'’]{3,60}?)(?=\s+(?:h\/f|f\/h|\(h\/f\)|pour|afin|chez|au sein|en cdi|en cdd)\b|[.,\n]|$)/i;
+  for (const line of lines.slice(0, 20)) {
+    const m = line.match(seekingRe);
+    if (m && m[1] && m[1].trim().length >= 3) return m[1].trim();
+  }
+
+  // Otherwise: the very first non-empty line, if it reads like a heading
+  // (short, no terminal punctuation) rather than a full sentence — job
+  // postings very commonly open with the title on its own line.
+  const first = lines[0];
+  if (first.length <= 90 && first.split(/\s+/).length <= 12 && !/[.!?]$/.test(first)) {
+    return first;
+  }
+
+  return '';
 }
 
 /**
@@ -264,4 +438,4 @@ async function parseTextFromBase64(base64) {
   }
 }
 
-module.exports = { parseCVText, parseJobDescription, parseTextFromBase64 };
+module.exports = { parseCVText, parseJobDescription, parseTextFromBase64, extractJobTitle };

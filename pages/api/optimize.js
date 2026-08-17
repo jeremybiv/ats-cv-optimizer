@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../src/lib/auth';
 import { extractJobDescription } from '../../src/lib/jobFetcher';
-import { parseTextFromBase64, parseCVText } from '../../src/lib/parsers';
+import { parseTextFromBase64, parseCVText, extractJobTitle } from '../../src/lib/parsers';
 import { extractKeywords, scoreCV, generateOptimizedCV, formatCVHTML } from '../../src/lib/atsEngine';
 import { findUserByEmail, getUserUsage, incrementUsage } from '../../src/lib/db';
 
@@ -82,7 +82,11 @@ export default async function handler(req, res) {
     }
 
     const cvScore = cvText ? scoreCV(cvText, keywords) : { matchScore: 0, keywordCount: 0, missingCount: 0, structureScore: 70, foundKeywords: [] };
-    const jobP = { title: '', company: '', location: '', type: '', summary: jd.slice(0, 500), description: jd };
+    // Title was previously always '' here, which made the generated CV fall
+    // back to a literal "Titre du poste visé" placeholder that leaked
+    // straight into the exported document instead of ever showing the
+    // actual target role.
+    const jobP = { title: extractJobTitle(jd), company: '', location: '', type: '', summary: jd.slice(0, 500), description: jd };
 
     const optimizedHTML = generateOptimizedCV({ cvText, job: jobP, jobKeywords: keywords, parsedCV, strictMode });
     const finalHTML = formatCVHTML(optimizedHTML, keywords);

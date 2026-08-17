@@ -297,7 +297,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
 </head>
 <body>
   <h1>${name}</h1>
-  <div class="role">${job?.title || 'Titre du poste vise'}</div>
+  ${job?.title ? `<div class="role">${job.title}</div>` : ''}
   <div class="contact"><span>${email}</span>${phone ? '<span>' + phone + '</span>' : ''}</div>
   <div class="section">
     <h2>Resume</h2>
@@ -344,7 +344,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   // laissait en {{placeholder}} sans equivalent dans les donnees du CV
   // (ex: pas de "Projets" ni de sous-categories de competences curatees,
   // pas de niveau CECRL par langue, pas de ville/pays).
-  var jobTitle = job?.title || 'Titre du poste vise';
+  var jobTitle = job?.title || '';
   var tagsHTML = (jobKeywords?.technical || []).slice(0, 6).map(function(k) {
     return '<span class="tag">' + k.charAt(0).toUpperCase() + k.slice(1) + '</span>';
   }).join('');
@@ -449,6 +449,16 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
       .main{padding:20px 24px 24px 30px;}
       .side{padding:20px 24px;}
       .job{page-break-inside:avoid;}
+      /* Un CV avec beaucoup d'experience rend la colonne .main bien plus
+         haute qu'une seule page — dans un layout flex, .side (34%) est
+         alors etiree/coupee au fil des sauts de page et son propre
+         contenu (competences/formation/langues) se retrouve disperse ou
+         tronque au lieu de rester lisible. Empiler .main puis .side sur
+         une seule colonne (meme fallback que le mode mobile ci-dessous)
+         garantit un flux top-a-bas correct, page apres page, quelle que
+         soit la longueur de l'experience. */
+      .layout{display:block;}
+      .side{border-left:none;border-top:1px solid var(--line);}
     }
     @media(max-width:760px){
       .layout{display:block;}
@@ -465,7 +475,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
     <div class="top">
       <div>
         <h1>${name}</h1>
-        <p class="role">${jobTitle}</p>
+        ${jobTitle ? `<p class="role">${jobTitle}</p>` : ''}
       </div>
       <div class="contact">${email}${phone ? '<br>' + phone : ''}</div>
     </div>
