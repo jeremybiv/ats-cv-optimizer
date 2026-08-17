@@ -100,7 +100,11 @@ function parseCVText(pdfText) {
       // usually lists several jobs under one "Experience" header, so without
       // this a second job would get folded into the first one's description.
       const companyMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      if (companyMatch && (!currentItem || currentItem.company)) {
+      // French CVs often use "Title - Company (year)" with a plain hyphen —
+      // detect those too (hyphen must have spaces + end with a year in parens,
+      // so "full-stack" or prose lines are NOT mistaken for a job header).
+      const hyphenJobMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
+      if ((companyMatch || hyphenJobMatch) && (!currentItem || currentItem.company)) {
         currentItem = { title: '', company: '', dates: '', description: [] };
         cv.experience.push(currentItem);
       }
@@ -111,6 +115,10 @@ function parseCVText(pdfText) {
       if (companyMatch) {
         currentItem.company = companyMatch[1].trim();
         currentItem.title = companyMatch[2].trim();
+      } else if (hyphenJobMatch) {
+        currentItem.title = hyphenJobMatch[1].trim();
+        currentItem.company = hyphenJobMatch[2].trim();
+        currentItem.dates = '(' + hyphenJobMatch[3].trim() + ')';
       } else if (trimmed.match(/^\d{4}/) || trimmed.match(/20\d{2}/)) {
         currentItem.dates = trimmed;
       } else {
@@ -118,7 +126,9 @@ function parseCVText(pdfText) {
       }
     } else if (currentSection === 'education') {
       const degreeMatch = trimmed.match(/^(.+?)\s*[|–—]\s*(.+)$/);
-      if (degreeMatch && (!currentItem || currentItem.institution)) {
+      // French CVs: "Diploma - Institution (year)" — plain hyphen detection
+      const hyphenDegreeMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
+      if ((degreeMatch || hyphenDegreeMatch) && (!currentItem || currentItem.institution)) {
         currentItem = { degree: '', institution: '', dates: '', description: [] };
         cv.education.push(currentItem);
       }
@@ -129,6 +139,10 @@ function parseCVText(pdfText) {
       if (degreeMatch) {
         currentItem.institution = degreeMatch[1].trim();
         currentItem.degree = degreeMatch[2].trim();
+      } else if (hyphenDegreeMatch) {
+        currentItem.degree = hyphenDegreeMatch[1].trim();
+        currentItem.institution = hyphenDegreeMatch[2].trim();
+        currentItem.dates = '(' + hyphenDegreeMatch[3].trim() + ')';
       } else if (trimmed.match(/20\d{2}/)) {
         currentItem.dates = trimmed;
       } else {
@@ -195,7 +209,10 @@ async function parseTextFromBase64(base64) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map(item => item.str || '').join(' ') + '\n';
+      // hasEOL : chaque item indique s'il termine une ligne — sinon tout le
+      // texte se retrouve sur UNE seule ligne et le parseCVText ne détecte
+      // ni le nom, ni les sections (expériences/formations) → CV vide.
+      text += content.items.map(item => (item.str || '') + (item.hasEOL ? '\n' : ' ')).join('') + '\n';
     }
     return text;
   } catch (e) {
