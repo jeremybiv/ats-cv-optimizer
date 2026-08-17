@@ -223,7 +223,12 @@ async function parseTextFromBase64(base64) {
     }
     const pdf = await pdfjs.getDocument({
       data: new Uint8Array(buffer),
-      ...(standardFontDataUrl ? { standardFontDataUrl } : {}),
+      // disableFontFace : on n'extrait que du TEXTE (getTextContent) — pas de
+      // rendu. Sans ça, pdfjs tente de charger les polices standard
+      // (LiberationSans-*.ttf) qui sont ABSENTES du bundle serverless Vercel
+      // → exception avant l'extraction → CV vide.
+      disableFontFace: true,
+      useSystemFonts: false,
     }).promise;
     let text = '';
     for (let i = 1; i <= pdf.numPages; i++) {
