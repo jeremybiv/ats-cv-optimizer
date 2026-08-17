@@ -205,6 +205,11 @@ async function parseTextFromBase64(base64) {
     // pdfjs-dist 3.x : version CommonJS native — fiable en Vercel serverless
     // (la 4.x est ESM-only (.mjs) et son import dynamique échoue en prod)
     const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+    // Force le file tracing de Next à inclure le worker : pdfjs le charge via
+    // eval("require")("./pdf.worker.js") (fake worker en Node) — invisible
+    // pour le tracing → worker absent du déploiement serverless → parse vide.
+    // Un require statique ici garantit que Next l'embarque dans le bundle.
+    require('pdfjs-dist/legacy/build/pdf.worker.js');
     const buffer = Buffer.from(base64, 'base64');
     // Nécessaire en prod (Vercel serverless) : sans standardFontDataUrl,
     // pdfjs-dist ne trouve pas les polices standard et échoue → le fallback
