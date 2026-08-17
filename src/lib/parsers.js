@@ -205,22 +205,12 @@ async function parseTextFromBase64(base64) {
     // pdfjs-dist 3.x : version CommonJS native — fiable en Vercel serverless
     // (la 4.x est ESM-only (.mjs) et son import dynamique échoue en prod)
     const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+    // Force le file tracing de Next à inclure le worker : pdfjs le charge via
+    // eval("require")("./pdf.worker.js") (fake worker en Node) — invisible
+    // pour le tracing → worker absent du déploiement serverless → parse vide.
+    // Un require statique ici garantit que Next l'embarque dans le bundle.
+    require('pdfjs-dist/legacy/build/pdf.worker.js');
     const buffer = Buffer.from(base64, 'base64');
-    // Nécessaire en prod (Vercel serverless) : sans standardFontDataUrl,
-    // pdfjs-dist ne trouve pas les polices standard et échoue → le fallback
-    // naïf retournait alors le binaire brut du PDF (%PDF-1.3...) comme "texte".
-    // Résolution compatible CJS (import.meta.url est invalide dans un .js CJS).
-    let standardFontDataUrl;
-    try {
-      // Les polices standard de pdfjs-dist vivent dans <pkg>/standard_fonts/
-      const pdfjsRoot = require.resolve('pdfjs-dist/package.json').replace(/package\.json$/, '');
-      const fontsDir = pdfjsRoot + 'standard_fonts/';
-      // Vérifier qu'elles existent (sinon on laisse pdfjs utiliser son défaut)
-      const { existsSync } = require('fs');
-      standardFontDataUrl = existsSync(fontsDir) ? fontsDir : undefined;
-    } catch {
-      standardFontDataUrl = undefined;
-    }
     const pdf = await pdfjs.getDocument({
       data: new Uint8Array(buffer),
       // disableFontFace : on n'extrait que du TEXTE (getTextContent) — pas de
