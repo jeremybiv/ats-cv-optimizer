@@ -188,7 +188,25 @@ async function parseTextFromBase64(base64) {
   try {
     const { getDocument } = await import('pdfjs-dist/legacy/build/pdf.mjs');
     const buffer = Buffer.from(base64, 'base64');
-    const pdf = await getDocument({ data: new Uint8Array(buffer) }).promise;
+    // Nécessaire en prod (Vercel serverless) : sans standardFontDataUrl,
+    // pdfjs-dist ne trouve pas les polices standard et échoue → le fallback
+    // naïf retournait alors le binaire brut du PDF (%PDF-1.3...) comme "texte".
+    // Résolution compatible CJS (import.meta.url est invalide dans un .js CJS).
+    let standardFontDataUrl;
+    try {
+      // Les polices standard de pdfjs-dist vivent dans <pkg>/standard_fonts/
+      const pdfjsRoot = require.resolve('pdfjs-dist/package.json').replace(/package\.json$/, '');
+      const fontsDir = pdfjsRoot + 'standard_fonts/';
+      // Vérifier qu'elles existent (sinon on laisse pdfjs utiliser son défaut)
+      const { existsSync } = require('fs');
+      standardFontDataUrl = existsSync(fontsDir) ? fontsDir : undefined;
+    } catch {
+      standardFontDataUrl = undefined;
+    }
+    const pdf = await getDocument({
+      data: new Uint8Array(buffer),
+      ...(standardFontDataUrl ? { standardFontDataUrl } : {}),
+    }).promise;
     let text = '';
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
@@ -198,9 +216,18 @@ async function parseTextFromBase64(base64) {
     return text;
   } catch (e) {
     console.error('[parsers] PDF parse error:', e.message);
-    // Fallback: try to decode base64 as plain text
+    // Fallback: try to decode base64 as plain text — MAIS uniquement si le
+    // résultat est du texte lisible (jamais le binaire brut d'un PDF).
     try {
-      return Buffer.from(base64, 'base64').toString('utf-8');
+      const decoded = Buffer.from(base64, 'base64').toString('utf-8');
+      // Un PDF commence par %PDF — ne jamais renvoyer ça comme texte de CV.
+      if (!decoded || decoded.startsWith('%PDF') || decoded.includes('\u0000')) {
+        return '';
+      }
+      // Heuristique : le texte doit être majoritairement lisible (pas du binaire).
+      const printable = (decoded.match(/[\x20-\x7EÀ-ÿ\n\r\t]/g) || []).length;
+      if (printable / Math.max(decoded.length, 1) < 0.6) return '';
+      return decoded;
     } catch {
       return '';
     }
