@@ -209,7 +209,24 @@ async function parseTextFromBase64(base64) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      text += content.items.map(item => item.str || '').join(' ') + '\n';
+      // pdf.js reports each text run as a separate item — joining them all
+      // with a single space (the old behaviour) collapsed an entire page
+      // into one giant line, which broke parseCVText's line-by-line section
+      // detection (it needs real line breaks to tell "Expérience" the
+      // header from a sentence that happens to contain the word). Each item
+      // carries hasEOL, pdf.js's own signal that a line ends after it —
+      // use that to reconstruct the PDF's actual line breaks.
+      let line = '';
+      for (const item of content.items) {
+        line += item.str || '';
+        if (item.hasEOL) {
+          text += line.trim() + '\n';
+          line = '';
+        } else if (item.str) {
+          line += ' ';
+        }
+      }
+      if (line.trim()) text += line.trim() + '\n';
     }
     return text;
   } catch (e) {
