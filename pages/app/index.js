@@ -360,49 +360,36 @@ export default function Home() {
     }
   };
 
-  const handleDownloadPDF = async () => {
+  // Auparavant : html2canvas rasterisait le CV en JPEG puis jsPDF empilait
+  // ces images en pages (pagebreak "legacy" = decoupage brut par hauteur de
+  // pixels). Deux problemes en decoulaient, l'un invisible et l'autre tres
+  // visible :
+  // - le PDF resultant ne contenait AUCUN texte reel (juste une image par
+  //   page) — inutilisable par un vrai ATS, qui ne lit que du texte ;
+  // - des que le contenu depassait une page, le decoupage par hauteur de
+  //   pixels n'a aucune notion des deux colonnes du template (main/side) :
+  //   au-dela de la page 1, la colonne de gauche s'arretait dans le vide
+  //   pendant que la colonne de droite continuait a s'empiler seule,
+  //   produisant des pages avec tout le texte tasse a droite.
+  // On laisse desormais le moteur d'impression natif du navigateur generer
+  // le PDF : il produit du vrai texte selectionnable, et respecte les
+  // regles @media print du template (dont le passage en une seule colonne
+  // au-dela de la premiere page — voir atsEngine.js) au lieu de rasteriser
+  // un flex a deux colonnes de hauteurs inegales.
+  const handleDownloadPDF = () => {
     if (!result?.html) return;
-    try {
-      if (typeof window !== 'undefined' && !window.html2pdf) {
-        await new Promise((resolve, reject) => {
-          const script = document.createElement('script');
-          script.src = '/html2pdf.bundle.min.js';
-          script.onload = resolve;
-          script.onerror = reject;
-          document.head.appendChild(script);
-        });
-      }
-      if (typeof window !== 'undefined' && window.html2pdf) {
-        const element = document.createElement('div');
-        element.innerHTML = result.html;
-        element.style.padding = '20px';
-        element.style.background = '#fff';
-        // Fixed px width (not '210mm'): html2canvas renders at a CSS pixel
-        // width, and mixing mm with its internal windowWidth math previously
-        // made the canvas narrower than the element's own layout — content
-        // (contact block, stat tiles, skill pills...) got silently cropped
-        // off the right edge of the exported PDF instead of wrapping.
-        // windowWidth gives the layout a bit more room than the element's
-        // own width so flex rows (header contact, stats bar) have space to
-        // lay out without overflowing the capture area.
-        element.style.width = '800px';
-        document.body.appendChild(element);
-        const opt = {
-          margin:       0.5,
-          filename:     'cv_optimise_ats.pdf',
-          image:        { type: 'jpeg', quality: 0.98 },
-          html2canvas:  { scale: 2, useCORS: true, windowWidth: 840, width: 840 },
-          jsPDF:        { unit: 'in', format: 'a4', orientation: 'portrait' },
-          pagebreak:    { mode: ['css', 'legacy'] }  // sauts de page intelligents (multi-pages propres)
-        };
-        await window.html2pdf().set(opt).from(element).save();
-        document.body.removeChild(element);
-      } else {
-        window.print();
-      }
-    } catch (err) {
-      setError(err.message || 'Erreur lors de la génération PDF');
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      setError('Le navigateur a bloque l\'ouverture de la fenetre d\'impression. Autorise les pop-ups pour ce site puis reessaie.');
+      return;
     }
+    printWindow.document.open();
+    printWindow.document.write(result.html);
+    printWindow.document.close();
+    printWindow.onload = () => {
+      printWindow.focus();
+      printWindow.print();
+    };
   };
 
   const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
