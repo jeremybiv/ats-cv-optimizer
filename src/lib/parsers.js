@@ -20,6 +20,7 @@ function parseCVText(pdfText) {
     skills: [],
     certifications: [],
     languages: [],
+    interests: [],
   };
 
   let currentSection = null;
@@ -35,6 +36,7 @@ function parseCVText(pdfText) {
     { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
     { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
     { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
+    { regex: /\b(interets?|hobbies|loisirs|passions?)\b/i, key: 'interests' },
     // Liens/reseaux ne sont jamais une liste de contenu a conserver telle
     // quelle (juste des pointeurs externes) - les reconnaitre comme un
     // en-tete ferme la section precedente au lieu de laisser une URL
@@ -182,18 +184,21 @@ function parseCVText(pdfText) {
     // its own label instead of blindly trusting the section we're still in.
     const arrowBulletMatch = trimmed.match(/^[→▸►]\s*([^:]{2,40}):\s*(.*)$/);
     if (arrowBulletMatch) {
-      const label = arrowBulletMatch[1].trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const rawLabel = arrowBulletMatch[1].trim();
+      const label = rawLabel.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       const rest = arrowBulletMatch[2].trim();
       if (/\blangue/.test(label)) {
         currentSection = 'languages';
         const langItems = rest.split(/[,;•|]|\s-\s/).map(s => s.trim()).filter(Boolean);
         cv.languages.push(...langItems);
       } else {
-        // Not a language sub-block — stop filing subsequent lines under
-        // whatever section was active (there's no dedicated field for
-        // hobbies/interests yet, so they're dropped rather than misfiled).
-        currentSection = null;
+        // Not a language sub-block — this is exactly what a "Centres
+        // d'interet" section holds (hobby/passion + a one-line description),
+        // just formatted as an icon bullet instead of a labeled section.
+        // Keep the candidate's own label rather than dropping the content.
+        currentSection = 'interests';
         currentItem = null;
+        cv.interests.push(rest ? `${rawLabel} : ${rest}` : rawLabel);
       }
       continue;
     }
@@ -311,6 +316,11 @@ function parseCVText(pdfText) {
       // Split par virgule/point-virgule : "Francais, Anglais" -> 2 entrees
       const langItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
       pushTracked(cv.languages, trimmed, langItems);
+    } else if (currentSection === 'interests') {
+      // Une ligne "Lecture, Randonnee, Photographie" -> 3 entrees ; une ligne
+      // de prose libre (frequente sous "Centres d'interet") reste telle quelle.
+      const interestItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
+      pushTracked(cv.interests, trimmed, interestItems);
     } else if (currentSection === 'summary') {
       cv.summary = cv.summary ? cv.summary + ' ' + trimmed : trimmed;
       trackRaw(trimmed);
@@ -334,6 +344,11 @@ function parseCVText(pdfText) {
     .map(s => s.charAt(0).toUpperCase() + s.slice(1));
   cv.languages = [...new Set(cv.languages.map(s => s.toLowerCase()))]
     .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+
+  // Interests are often full sentences ("Twitch", "Vue.js", acronyms) —
+  // dedupe on exact match only, without the lowercase/recapitalize pass
+  // used above (that would mangle casing everywhere but the first letter).
+  cv.interests = [...new Set(cv.interests.filter(Boolean))];
 
   return cv;
 }
