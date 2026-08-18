@@ -9,14 +9,18 @@ export const config = { api: { bodyParser: { sizeLimit: '10mb' } } };
 
 const FREE_PLAN_MONTHLY_LIMIT = 2;
 
+// Compte admin : toujours gratuit et illimité, quel que soit le statut d'abonnement en base.
+const ADMIN_EMAILS = ['jeremy.bivaud@gmail.com'];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' });
   try {
     // ── Subscription quota check (free plan: 2 CV/month, Pro: unlimited) ──
     const session = await getServerSession(req, res, authOptions);
     if (session?.user?.id) {
-      const user = await findUserByEmail(session.user.email);
-      const isUnlimited = user?.subscription_status === 'active';
+      const isAdmin = ADMIN_EMAILS.includes((session.user.email || '').toLowerCase());
+      const user = isAdmin ? null : await findUserByEmail(session.user.email);
+      const isUnlimited = isAdmin || user?.subscription_status === 'active';
       if (!isUnlimited) {
         const usage = await getUserUsage(session.user.id);
         if (usage >= FREE_PLAN_MONTHLY_LIMIT) {
