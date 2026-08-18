@@ -173,6 +173,31 @@ function parseCVText(pdfText) {
       continue;
     }
 
+    // Sidebar-style CVs sometimes pack several unlabeled sub-blocks under one
+    // visible header, each introduced by an icon/arrow bullet
+    // ("→ Langues : français, anglais", "→ Live streaming (Twitch) : ...").
+    // Without this, everything after the first real header (e.g. "Langues")
+    // keeps accumulating into that same field forever — hobbies, streaming,
+    // hardware projects end up mislabeled as languages. Route each bullet by
+    // its own label instead of blindly trusting the section we're still in.
+    const arrowBulletMatch = trimmed.match(/^[→▸►]\s*([^:]{2,40}):\s*(.*)$/);
+    if (arrowBulletMatch) {
+      const label = arrowBulletMatch[1].trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const rest = arrowBulletMatch[2].trim();
+      if (/\blangue/.test(label)) {
+        currentSection = 'languages';
+        const langItems = rest.split(/[,;•|]|\s-\s/).map(s => s.trim()).filter(Boolean);
+        cv.languages.push(...langItems);
+      } else {
+        // Not a language sub-block — stop filing subsequent lines under
+        // whatever section was active (there's no dedicated field for
+        // hobbies/interests yet, so they're dropped rather than misfiled).
+        currentSection = null;
+        currentItem = null;
+      }
+      continue;
+    }
+
     // Detect contact info on early lines
     if (!currentSection && lines.indexOf(line) < 10) {
       const emailMatch = trimmed.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
