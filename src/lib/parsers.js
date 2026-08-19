@@ -445,14 +445,41 @@ async function parseTextFromBase64(base64) {
       // header from a sentence that happens to contain the word). Each item
       // carries hasEOL, pdf.js's own signal that a line ends after it —
       // use that to reconstruct the PDF's actual line breaks.
+      // Some PDFs (drop-cap first letters, styled spans) split a single word
+      // across several text-runs with NO actual gap between them — always
+      // inserting a space here turned "Conception" into "C onception",
+      // "Intégration" into "I ntégration", etc. Only add a space when the
+      // next item's start X actually sits past the previous item's end X by
+      // more than a small fraction of the font size — i.e. there's a real
+      // visual gap, not just a style/font change mid-word.
       let line = '';
+      let prevEndX = null;
+      let prevEndY = null;
       for (const item of content.items) {
-        line += item.str || '';
+        const str = item.str || '';
+        if (str) {
+          const tx = item.transform || [1, 0, 0, 1, 0, 0];
+          const startX = tx[4];
+          const y = tx[5];
+          const fontSize = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
+          const sameLine = prevEndY === null || Math.abs(y - prevEndY) < fontSize * 0.5;
+          if (prevEndX !== null && sameLine) {
+            const gap = startX - prevEndX;
+            if (gap > fontSize * 0.15 && !line.endsWith(' ') && !/^\s/.test(str)) {
+              line += ' ';
+            }
+          } else if (prevEndX !== null && !sameLine && !line.endsWith(' ')) {
+            line += ' ';
+          }
+          line += str;
+          prevEndX = startX + (item.width || 0);
+          prevEndY = y;
+        }
         if (item.hasEOL) {
           text += line.trim() + '\n';
           line = '';
-        } else if (item.str) {
-          line += ' ';
+          prevEndX = null;
+          prevEndY = null;
         }
       }
       if (line.trim()) text += line.trim() + '\n';
