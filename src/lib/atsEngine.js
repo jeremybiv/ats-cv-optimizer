@@ -249,6 +249,7 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   var stats = computeStats();
   var languages = parsedCV?.languages || [];
   var certifications = parsedCV?.certifications || [];
+  var interests = parsedCV?.interests || [];
 
   if (strictMode) {
     // ATS STRICT — single column, no tables/graphics/pseudo-elements, but
@@ -328,6 +329,10 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
   ${languages.length > 0 ? `<div class="section">
     <h2>Langues</h2>
     <p>${languages.map(function(l) { return '<span class="pill">' + l + '</span>'; }).join(' ')}</p>
+  </div>` : ''}
+  ${interests.length > 0 ? `<div class="section">
+    <h2>Centres d'interet</h2>
+    <ul>${interests.map(function(i) { return '<li>' + i + '</li>'; }).join('')}</ul>
   </div>` : ''}
   <div class="meta-footer">
     <p>Mots-cles: ${metaKeywords}</p>
@@ -505,6 +510,8 @@ function generateOptimizedCV({ cvText, job, jobKeywords, parsedCV, strictMode })
       ${eduSideHTML}
       ${languages.length > 0 ? `<h2 class="section">Langues</h2>
       ${languages.map(function(l) { return '<div class="lang"><b>' + l + '</b></div>'; }).join('\n')}` : ''}
+      ${interests.length > 0 ? `<h2 class="section">Centres d'int&eacute;r&ecirc;t</h2>
+      ${interests.map(function(i) { return '<div class="lang">' + i + '</div>'; }).join('\n')}` : ''}
     </aside>
   </div>
   <div class="brand-footer">CV optimise par <a href="https://prospecho.fr">Prospecho</a> — Ameliore ton score ATS en quelques secondes</div>
