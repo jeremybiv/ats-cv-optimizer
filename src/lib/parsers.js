@@ -2,6 +2,11 @@
  * Parsers for CV PDF and job description text
  */
 
+// Matches either a US/generic 3-3-4 grouped number or a French mobile number
+// ("+33 6 47 17 62 24", "06 47 17 62 24") — the plain 3-3-4 pattern alone
+// never matches French formatting (2-1-2-2-2-2 digit groups).
+const PHONE_RE = /(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|(\+33|0)[\s.-]?[1-9](?:[\s.-]?\d{2}){4}/;
+
 /**
  * Parse raw text from PDF into a structured CV object
  * @param {string} pdfText - Raw text extracted from PDF
@@ -211,7 +216,7 @@ function parseCVText(pdfText) {
         trackRaw(trimmed);
         continue;
       }
-      const phoneMatch = trimmed.match(/(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/);
+      const phoneMatch = trimmed.match(PHONE_RE);
       if (phoneMatch && !cv.phone) {
         cv.phone = phoneMatch[0];
         trackRaw(trimmed);
@@ -350,6 +355,21 @@ function parseCVText(pdfText) {
   // used above (that would mangle casing everywhere but the first letter).
   cv.interests = [...new Set(cv.interests.filter(Boolean))];
 
+  // Contact info is normally only looked for in the first 10 lines, which
+  // assumes a roughly linear reading order. Multi-column CVs can land the
+  // contact block well past that (e.g. after a whole "profile" sidebar gets
+  // extracted first) — fall back to a full-text scan so the email/phone
+  // aren't silently dropped just because of where they ended up in the
+  // reconstructed text.
+  if (!cv.email) {
+    const emailMatch = pdfText.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
+    if (emailMatch) cv.email = emailMatch[1];
+  }
+  if (!cv.phone) {
+    const phoneMatch = pdfText.match(PHONE_RE);
+    if (phoneMatch) cv.phone = phoneMatch[0];
+  }
+
   return cv;
 }
 
@@ -408,6 +428,170 @@ function extractJobTitle(jobText) {
   return '';
 }
 
+// Only insert a space between two adjacent text runs when there's an actual
+// horizontal gap between them (relative to font size) — otherwise a
+// style/font change mid-word (drop caps, bold spans) would wrongly split
+// words like "Conception" into "C onception".
+function joinItemsWithSpacing(items) {
+  let line = '';
+  let prevEndX = null;
+  for (const item of items) {
+    const str = item.str || '';
+    if (!str) continue;
+    const tx = item.transform || [1, 0, 0, 1, 0, 0];
+    const startX = tx[4];
+    const fontSize = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
+    if (prevEndX !== null) {
+      const gap = startX - prevEndX;
+      if (gap > fontSize * 0.15 && !line.endsWith(' ') && !/^\s/.test(str)) {
+        line += ' ';
+      }
+    }
+    line += str;
+    prevEndX = startX + (item.width || 0);
+  }
+  return line.trim();
+}
+
+// Groups items (already restricted to one column) into visual rows by
+// y-proximity, preserving their relative order, then joins each row into a
+// line. Used for the multi-column path, where pdf.js's own hasEOL signal
+// isn't reliable (it's computed against the interleaved, unfiltered stream).
+function extractColumnText(items) {
+  const rows = [];
+  for (const item of items) {
+    if (!item.str) continue;
+    const tx = item.transform || [1, 0, 0, 1, 0, 0];
+    const y = tx[5];
+    const fontSize = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
+    const last = rows[rows.length - 1];
+    if (last && Math.abs(last.y - y) < fontSize * 0.5) {
+      last.items.push(item);
+    } else {
+      rows.push({ y, items: [item] });
+    }
+  }
+  return rows.map(r => joinItemsWithSpacing(r.items)).filter(Boolean).join('\n');
+}
+
+// Detects a vertical "gap band" that separates two columns of a sidebar-style
+// CV (a distinct left column and a wider main column, or vice versa). Votes
+// per horizontal bin across many y-bands, so a full-width header/footer row
+// (which naturally has no gap) doesn't hide a gap that's consistently present
+// across the rest of the page. Returns the gap's midpoint X, or null when the
+// page looks like a normal single-column document.
+function detectColumnSplitX(items, pageWidth) {
+  if (!items.length || !pageWidth) return null;
+  const BANDS = 40;
+  const BIN_COUNT = 60;
+  const ys = items.map(it => it.transform[5]);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const bandHeight = (maxY - minY) / BANDS || 1;
+  const votes = new Array(BIN_COUNT).fill(0);
+  let bandsWithContent = 0;
+  for (let b = 0; b < BANDS; b++) {
+    const bandMinY = minY + b * bandHeight;
+    const bandMaxY = bandMinY + bandHeight;
+    const bandItems = items.filter(it => it.transform[5] >= bandMinY && it.transform[5] < bandMaxY);
+    if (bandItems.length < 2) continue;
+    bandsWithContent++;
+    const covered = new Array(BIN_COUNT).fill(false);
+    for (const it of bandItems) {
+      const x0 = it.transform[4];
+      const x1 = x0 + (it.width || 0);
+      const b0 = Math.max(0, Math.floor((x0 / pageWidth) * BIN_COUNT));
+      const b1 = Math.min(BIN_COUNT - 1, Math.ceil((x1 / pageWidth) * BIN_COUNT));
+      for (let bin = b0; bin <= b1; bin++) covered[bin] = true;
+    }
+    for (let bin = Math.floor(BIN_COUNT * 0.12); bin < Math.ceil(BIN_COUNT * 0.88); bin++) {
+      if (!covered[bin]) votes[bin]++;
+    }
+  }
+  if (bandsWithContent < 4) return null;
+  const threshold = bandsWithContent * 0.6;
+  let bestRun = null;
+  let runStart = -1;
+  const considerRun = (s, e) => {
+    const widthBins = e - s + 1;
+    if (widthBins >= BIN_COUNT * 0.03 && (!bestRun || widthBins > bestRun.e - bestRun.s)) {
+      bestRun = { s, e };
+    }
+  };
+  for (let b = 0; b < BIN_COUNT; b++) {
+    if (votes[b] >= threshold) {
+      if (runStart === -1) runStart = b;
+    } else if (runStart !== -1) {
+      considerRun(runStart, b - 1);
+      runStart = -1;
+    }
+  }
+  if (runStart !== -1) considerRun(runStart, BIN_COUNT - 1);
+  if (!bestRun) return null;
+  return ((bestRun.s + bestRun.e + 1) / 2 / BIN_COUNT) * pageWidth;
+}
+
+// Reconstructs one page's text. Sidebar-style CVs (a narrow profile/skills
+// column next to a wider experience column) get their text runs written to
+// the PDF's content stream in whatever order the design tool laid them out
+// in — often the whole main column, then the whole sidebar, or interleaved
+// row-by-row — which has nothing to do with reading order. Extracting
+// linearly then produces text where sidebar headers ("Profil", "Formation")
+// land in the middle of an unrelated job description. When a page has a
+// clear two-column layout we split items by X position first (preserving
+// each column's own relative order) and extract each column separately;
+// single-column pages keep the simpler, already-proven hasEOL-based path.
+function extractPageText(items, pageWidth) {
+  const textItems = items.filter(it => it.str);
+  if (!textItems.length) return '';
+  const splitX = detectColumnSplitX(textItems, pageWidth);
+  if (splitX == null) {
+    let text = '';
+    let line = '';
+    let prevEndX = null;
+    let prevEndY = null;
+    for (const item of items) {
+      const str = item.str || '';
+      if (str) {
+        const tx = item.transform || [1, 0, 0, 1, 0, 0];
+        const startX = tx[4];
+        const y = tx[5];
+        const fontSize = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
+        const sameLine = prevEndY === null || Math.abs(y - prevEndY) < fontSize * 0.5;
+        if (prevEndX !== null && sameLine) {
+          const gap = startX - prevEndX;
+          if (gap > fontSize * 0.15 && !line.endsWith(' ') && !/^\s/.test(str)) {
+            line += ' ';
+          }
+        } else if (prevEndX !== null && !sameLine && !line.endsWith(' ')) {
+          line += ' ';
+        }
+        line += str;
+        prevEndX = startX + (item.width || 0);
+        prevEndY = y;
+      }
+      if (item.hasEOL) {
+        text += line.trim() + '\n';
+        line = '';
+        prevEndX = null;
+        prevEndY = null;
+      }
+    }
+    if (line.trim()) text += line.trim() + '\n';
+    return text;
+  }
+  const left = [];
+  const right = [];
+  for (const item of textItems) {
+    const tx = item.transform;
+    const center = tx[4] + (item.width || 0) / 2;
+    (center < splitX ? left : right).push(item);
+  }
+  const leftText = extractColumnText(left);
+  const rightText = extractColumnText(right);
+  return [leftText, rightText].filter(Boolean).join('\n') + '\n';
+}
+
 /**
  * Extract text from a base64-encoded PDF using pdfjs-dist
  * @param {string} base64 - Base64-encoded PDF
@@ -438,51 +622,8 @@ async function parseTextFromBase64(base64) {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const content = await page.getTextContent();
-      // pdf.js reports each text run as a separate item — joining them all
-      // with a single space (the old behaviour) collapsed an entire page
-      // into one giant line, which broke parseCVText's line-by-line section
-      // detection (it needs real line breaks to tell "Expérience" the
-      // header from a sentence that happens to contain the word). Each item
-      // carries hasEOL, pdf.js's own signal that a line ends after it —
-      // use that to reconstruct the PDF's actual line breaks.
-      // Some PDFs (drop-cap first letters, styled spans) split a single word
-      // across several text-runs with NO actual gap between them — always
-      // inserting a space here turned "Conception" into "C onception",
-      // "Intégration" into "I ntégration", etc. Only add a space when the
-      // next item's start X actually sits past the previous item's end X by
-      // more than a small fraction of the font size — i.e. there's a real
-      // visual gap, not just a style/font change mid-word.
-      let line = '';
-      let prevEndX = null;
-      let prevEndY = null;
-      for (const item of content.items) {
-        const str = item.str || '';
-        if (str) {
-          const tx = item.transform || [1, 0, 0, 1, 0, 0];
-          const startX = tx[4];
-          const y = tx[5];
-          const fontSize = Math.hypot(tx[2], tx[3]) || Math.hypot(tx[0], tx[1]) || 10;
-          const sameLine = prevEndY === null || Math.abs(y - prevEndY) < fontSize * 0.5;
-          if (prevEndX !== null && sameLine) {
-            const gap = startX - prevEndX;
-            if (gap > fontSize * 0.15 && !line.endsWith(' ') && !/^\s/.test(str)) {
-              line += ' ';
-            }
-          } else if (prevEndX !== null && !sameLine && !line.endsWith(' ')) {
-            line += ' ';
-          }
-          line += str;
-          prevEndX = startX + (item.width || 0);
-          prevEndY = y;
-        }
-        if (item.hasEOL) {
-          text += line.trim() + '\n';
-          line = '';
-          prevEndX = null;
-          prevEndY = null;
-        }
-      }
-      if (line.trim()) text += line.trim() + '\n';
+      const viewport = page.getViewport({ scale: 1 });
+      text += extractPageText(content.items, viewport.width);
     }
     return text;
   } catch (e) {
