@@ -615,10 +615,10 @@ function joinItemsWithSpacing(items) {
 }
 
 // Groups items (already restricted to one column) into visual rows by
-// y-proximity, preserving their relative order, then joins each row into a
-// line. Used for the multi-column path, where pdf.js's own hasEOL signal
-// isn't reliable (it's computed against the interleaved, unfiltered stream).
-function extractColumnText(items) {
+// y-proximity, preserving their relative order. Used for the multi-column
+// path, where pdf.js's own hasEOL signal isn't reliable (it's computed
+// against the interleaved, unfiltered stream).
+function buildRows(items) {
   const rows = [];
   for (const item of items) {
     if (!item.str) continue;
@@ -632,7 +632,56 @@ function extractColumnText(items) {
       rows.push({ y, items: [item] });
     }
   }
-  return rows.map(r => joinItemsWithSpacing(r.items)).filter(Boolean).join('\n');
+  return rows.map(r => ({ y: r.y, text: joinItemsWithSpacing(r.items) })).filter(r => r.text);
+}
+
+function extractColumnText(items) {
+  return buildRows(items).map(r => r.text).join('\n');
+}
+
+// Some two-column layouts aren't a real sidebar of unrelated content but a
+// main column with a narrow per-row annotation running beside it (dates and
+// locations printed in a slim right-aligned rail next to each job/degree,
+// common in moderncv-style/academic CV templates). Block-concatenating
+// left-then-right there (extractColumnText's usual job) puts every single
+// date/location at the very end of the page, disconnected from the entry
+// it belongs to. Interleaving each side's own rows by y instead keeps a
+// rail line right next to the main-column row it annotates - each stays
+// its own line rather than being fused into one (fusing risks gluing a
+// date onto an unrelated bullet when a template pairs the date with, say,
+// the entry's first bullet row instead of its title row).
+function extractInterleavedText(main, rail) {
+  const mainRows = buildRows(main);
+  if (!mainRows.length) return buildRows(rail).map(r => r.text).join('\n');
+  // A rail line can never sort above the very first line of real content -
+  // e.g. a "Last updated" timestamp sitting in the page's top corner, above
+  // even the candidate's name, would otherwise jump to the very front of
+  // the extracted text. Clamping keeps the rail purely an annotation of
+  // *rows that already started*, never a header of its own.
+  const topY = mainRows[0].y;
+  const rows = [
+    ...mainRows.map(r => ({ ...r, side: 0 })),
+    ...buildRows(rail).map(r => ({ ...r, y: Math.min(r.y, topY), side: 1 })),
+  ];
+  // Top-to-bottom (PDF y grows upward); a tie keeps the main column first.
+  rows.sort((a, b) => (b.y - a.y) || (a.side - b.side));
+  return rows.map(r => r.text).join('\n');
+}
+
+// Narrow-rail heuristic: the annotation side is much thinner than the main
+// side and carries far less text overall (a handful of short dates/places,
+// not a parallel section of skills/education prose) - a genuine sidebar is
+// both wide and comparably substantial, so this stays conservative enough
+// not to touch the sidebar-style templates extractColumnText already
+// handles correctly.
+function isAnnotationRail(items, otherItems, pageWidth) {
+  if (!items.length || !otherItems.length) return false;
+  const minX = Math.min(...items.map(it => it.transform[4]));
+  const maxX = Math.max(...items.map(it => it.transform[4] + (it.width || 0)));
+  const width = maxX - minX;
+  const chars = items.reduce((n, it) => n + it.str.length, 0);
+  const otherChars = otherItems.reduce((n, it) => n + it.str.length, 0);
+  return width < pageWidth * 0.3 && chars < otherChars * 0.3;
 }
 
 // Detects a vertical "gap band" that separates two columns of a sidebar-style
@@ -747,6 +796,12 @@ function extractPageText(items, pageWidth) {
     const tx = item.transform;
     const center = tx[4] + (item.width || 0) / 2;
     (center < splitX ? left : right).push(item);
+  }
+  if (isAnnotationRail(right, left, pageWidth)) {
+    return extractInterleavedText(left, right) + '\n';
+  }
+  if (isAnnotationRail(left, right, pageWidth)) {
+    return extractInterleavedText(right, left) + '\n';
   }
   const leftText = extractColumnText(left);
   const rightText = extractColumnText(right);
