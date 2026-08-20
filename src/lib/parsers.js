@@ -112,6 +112,15 @@ function parseCVText(pdfText) {
     'i'
   );
 
+  // Les mois français accentués (février, décembre, août...) ne matchent pas
+  // la liste MONTHS ci-dessous (écrite sans accents) quand le texte extrait
+  // du PDF les contient avec accents. Normaliser (retirer les accents) avant
+  // de tester — cohérent avec la normalisation des en-têtes de section.
+  function hasDateRange(text) {
+    const normalized = (text || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return DATE_RANGE_RE.test(normalized);
+  }
+
   // Les 2-3 dernieres lignes "brutes" vues, avec (si elles ont ete rangees
   // quelque part) le tableau + les items qu'elles y ont ajoutes - pour
   // pouvoir les recuperer si une ligne de dates revele apres coup qu'elles
@@ -368,14 +377,14 @@ function parseCVText(pdfText) {
     const looksLikeStructuredJobLine = currentSection === 'experience'
       && structuredJobMatch
       && !/^[\d\u2013\u2014.\-/]+$/.test(structuredJobMatch[1].trim())
-      && !DATE_RANGE_RE.test(structuredJobMatch[1].trim());
+      && !hasDateRange(structuredJobMatch[1].trim());
     // "dates · titre · société" sur une seule ligne (séparateur · ou |) —
     // format très courant des CV français ("2020-2024 · Lead Developer ·
     // BanqueTech"). Détecté AVANT startExperienceFromDateLine pour que la
     // ligne soit splittée correctement (dates/titre/société) au lieu d'être
     // avalée entière dans `dates` ou récupérée avec les mauvaises lignes.
     const dotSeparatedJobLine = currentSection === 'experience'
-      && DATE_RANGE_RE.test(trimmed)
+      && hasDateRange(trimmed)
       && /[·•|]/.test(trimmed);
     const skipDateRecovery = currentSection === 'education'
       || (currentSection === 'experience' && currentItem && !currentItem.dates)
@@ -404,7 +413,7 @@ function parseCVText(pdfText) {
       trackRaw(trimmed);
       continue;
     }
-    if (DATE_RANGE_RE.test(trimmed) && !skipDateRecovery) {
+    if (hasDateRange(trimmed) && !skipDateRecovery) {
       startExperienceFromDateLine(trimmed);
       trackRaw(trimmed);
       continue;
@@ -428,7 +437,7 @@ function parseCVText(pdfText) {
       // date range, not a title - it must not clobber the title we already
       // captured with the dates.
       const companyMatchIsDateRange = companyMatch
-        && (DATE_RANGE_RE.test(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
+        && (hasDateRange(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
       const newJob = (companyMatch || hyphenJobMatch) && (!currentItem || currentItem.company);
       if (newJob) {
         const prevItem = currentItem;
