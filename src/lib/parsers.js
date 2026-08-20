@@ -40,7 +40,11 @@ function dedupeCapitalize(arr) {
 // dumping every following section's content - skills, education, languages,
 // interests - into that section instead).
 function despaceHeader(text) {
-  const tokens = text.split(/\s+/).filter(Boolean);
+  // Variante points espacés : "E. X. P. É. R. I. E. N. C. E" ou
+  // "E. . X. . P. . É..." (points + espaces entre chaque lettre). On retire
+  // les points d'abord, puis on applique la détection espace-par-lettre.
+  const dotsRemoved = text.replace(/\.\s*/g, '');
+  const tokens = dotsRemoved.split(/\s+/).filter(Boolean);
   if (tokens.length < 3) return text;
   const shortCount = tokens.filter(t => t.length <= 2).length;
   if (shortCount / tokens.length < 0.6) return text;
@@ -96,8 +100,8 @@ const MONTHS = 'janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octob
 const DATE_RANGE_RE = new RegExp(
   '(?:' +
     // "Month? Year (a|à|-|to) Month? (Year|présent...)" — e.g. "2019 - 2020",
-    // "Janvier 2022 à mars 2023", "Mars 2018 à présent".
-    '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|à|-|–|—|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|présent|actuel|aujourd|current|now)' +
+    // "Janvier 2022 à mars 2023", "Mars 2018 à présent", "2018/2020" (slash).
+    '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|à|-|–|—|/|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|présent|actuel|aujourd|current|now)' +
     '|' +
     // "Month (a|à|-|to) Month Year" — French idiom sharing one trailing
     // year, e.g. "Juin à juillet 2021", "Avril à décembre 2022".
@@ -105,6 +109,14 @@ const DATE_RANGE_RE = new RegExp(
   ')',
   'i'
 );
+
+// Les mois français accentués (février, décembre, août...) ne matchent pas
+// la liste MONTHS ci-dessus (écrite sans accents) quand le texte extrait
+// du PDF les contient avec accents. Normaliser (retirer les accents) avant
+// de tester — cohérent avec la normalisation des en-têtes de section.
+function hasDateRange(text) {
+  return DATE_RANGE_RE.test(stripAccents(text || ''));
+}
 
 function parseCVText(pdfText) {
   const lines = pdfText.split('\n').filter(l => l.trim());
@@ -371,12 +383,58 @@ function parseCVText(pdfText) {
     // fill logic below) also carries its own date range, but it must be
     // split into company/dates by that logic, not swallowed whole into
     // `dates` by the coarser recovery below.
+    // Protéger les dates en-dash : "2018 – 2020 · Lead Developer · BanqueTech"
+    // contient un "–" qui ferait matcher looksLikeStructuredJobLine et casser
+    // le split (company="2018"). Une vraie ligne "Company | Title" a un | ou
+    // – avec du texte NON numérique avant.
+    const structuredJobMatch = /^(.+?)\s*[|–—]\s*(.+)$/.exec(trimmed);
     const looksLikeStructuredJobLine = currentSection === 'experience'
-      && /^(.+?)\s*[|–—]\s*(.+)$/.test(trimmed);
+      && structuredJobMatch
+      && !/^[\d\u2013\u2014.\-/]+$/.test(structuredJobMatch[1].trim())
+      && !hasDateRange(structuredJobMatch[1].trim());
+    // "dates · titre · société" sur une seule ligne (séparateur · ou |) —
+    // format très courant des CV français ("2020-2024 · Lead Developer ·
+    // BanqueTech"). Détecté AVANT startExperienceFromDateLine pour que la
+    // ligne soit splittée correctement (dates/titre/société) au lieu d'être
+    // avalée entière dans `dates` ou récupérée avec les mauvaises lignes.
+    // La date doit être dans le TOUT PREMIER segment (l'ordre du format visé)
+    // - sinon une ligne "Company - Location | Janvier 2021 - Present" (dates
+    // en dernier, format "titre puis meta-ligne" déjà géré plus bas par
+    // companyMatchIsDateRange) matcherait aussi et casserait ce split-là.
+    const dotSeparatedParts = /[·•|]/.test(trimmed)
+      ? trimmed.split(/[·•|]/).map(s => s.trim()).filter(Boolean)
+      : [];
+    const dotSeparatedJobLine = currentSection === 'experience'
+      && dotSeparatedParts.length >= 2
+      && hasDateRange(dotSeparatedParts[0]);
     const skipDateRecovery = currentSection === 'education'
       || (currentSection === 'experience' && currentItem && !currentItem.dates)
-      || looksLikeStructuredJobLine;
-    if (DATE_RANGE_RE.test(trimmed) && !skipDateRecovery) {
+      || looksLikeStructuredJobLine
+      || dotSeparatedJobLine
+      // Ligne "Titre - Société (année)" : la date entre parenthèses fait
+      // matcher DATE_RANGE_RE ("2017-2020" dans "(2017-2020)") mais cette
+      // ligne est déjà gérée par hyphenJobMatch dans la branche experience —
+      // le laisser passer par startExperienceFromDateLine volerait la ligne
+      // précédente (souvent une description) comme company.
+      || (currentSection === 'experience' && /\(\s*(?:19|20)\d{2}/.test(trimmed));
+    if (dotSeparatedJobLine) {
+      const parts = dotSeparatedParts;
+      const datePart = parts[0];
+      const titlePart = parts.length >= 3 ? parts[1] : parts[1] || '';
+      const companyPart = parts.length >= 3 ? parts[2] : '';
+      if (currentItem && currentItem.dates && currentItem.dates !== datePart) {
+        // Nouvelle mission : on termine l'entrée courante et on en ouvre une
+        const newItem = { title: titlePart, company: companyPart, dates: datePart, description: [] };
+        cv.experience.push(newItem);
+        currentItem = newItem;
+      } else {
+        currentItem = { title: titlePart, company: companyPart, dates: datePart, description: [] };
+        if (!cv.experience.includes(currentItem)) cv.experience.push(currentItem);
+      }
+      trackRaw(trimmed);
+      continue;
+    }
+    if (hasDateRange(trimmed) && !skipDateRecovery) {
       startExperienceFromDateLine(trimmed);
       trackRaw(trimmed);
       continue;
@@ -400,7 +458,7 @@ function parseCVText(pdfText) {
       // date range, not a title - it must not clobber the title we already
       // captured with the dates.
       const companyMatchIsDateRange = companyMatch
-        && (DATE_RANGE_RE.test(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
+        && (hasDateRange(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
       const newJob = (companyMatch || hyphenJobMatch) && (!currentItem || currentItem.company);
       if (newJob) {
         const prevItem = currentItem;
@@ -529,6 +587,13 @@ function parseCVText(pdfText) {
     const phoneMatch = pdfText.match(PHONE_RE);
     if (phoneMatch) cv.phone = phoneMatch[0];
   }
+
+  // Nettoyage : retirer les entrées vides créées par un header de section qui
+  // n'a jamais reçu de contenu (ex: header "Expérience" suivi directement
+  // d'une ligne de dates — la 1ère vraie ligne a créé sa propre entrée, le
+  // placeholder initial reste vide).
+  cv.experience = cv.experience.filter(e => e.title || e.company || e.dates || e.description.length > 0);
+  cv.education = cv.education.filter(e => e.degree || e.institution || e.dates || e.description.length > 0);
 
   return cv;
 }
