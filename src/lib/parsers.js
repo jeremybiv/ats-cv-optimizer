@@ -50,12 +50,23 @@ function parseCVText(pdfText) {
 
   let currentSection = null;
   let currentItem = null;
+  // True right after an icon/arrow "→ Label : text" interest bullet - a
+  // narrow sidebar column commonly wraps that one bullet's text onto the
+  // next visual line, which would otherwise be read as a brand new,
+  // meaningless interest entry instead of the rest of the same one.
+  let lastWasArrowInterest = false;
 
   // Word-boundary anchored so a real word/title doesn't false-match a header
   // keyword as a substring (e.g. "bac" inside "backend", "lang" inside
   // "language model" in a skills line).
   const sectionHeaders = [
-    { regex: /\b(experience|emploi|travail|career|work|professional|missions?|projets?|realisations?)\b/i, key: 'experience' },
+    // "missions/projets/realisations" only count as a header when they
+    // *open* the line - unlike "experience", they're common French words
+    // that show up inside perfectly ordinary job titles ("Chef de Projet
+    // Digital", "Gestion de Missions RH"), which are themselves short
+    // header-shaped lines and would otherwise falsely end the CV's contact
+    // block right after the name/role and swallow it into "experience".
+    { regex: /\b(experience|emploi|travail|career|work|professional)\b|^(missions?|projets?|realisations?)\b/i, key: 'experience' },
     { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
     { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
     { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
@@ -122,6 +133,20 @@ function parseCVText(pdfText) {
   function pushTracked(arr, text, items) {
     arr.push(...items);
     trackRaw(text, arr, items);
+  }
+
+  // A narrow sidebar column often wraps a single entry across two visual
+  // lines right after its opening "(" - e.g. "Wolof (natif)" printed as
+  // "Wolof" then "(natif)" once the comma-separated line it was part of no
+  // longer fits. Treated as a fresh item, "(natif)" alone is meaningless
+  // noise; it belongs glued back onto whatever was pushed just before it.
+  function pushTrackedOrContinue(arr, text, items) {
+    if (items.length === 1 && /^\(/.test(items[0]) && arr.length > 0) {
+      arr[arr.length - 1] = (arr[arr.length - 1] + ' ' + items[0]).trim();
+      trackRaw(text);
+      return;
+    }
+    pushTracked(arr, text, items);
   }
 
   // Une ligne de dates hors d'une entree "experience" deja ouverte demarre
@@ -236,6 +261,7 @@ function parseCVText(pdfText) {
 
     if (matchedSection) {
       currentSection = matchedSection;
+      lastWasArrowInterest = false;
       if (currentSection === 'experience') {
         currentItem = { title: '', company: '', dates: '', description: [] };
         cv.experience.push(currentItem);
@@ -261,6 +287,7 @@ function parseCVText(pdfText) {
       const rest = arrowBulletMatch[2].trim();
       if (/\blangue/.test(label)) {
         currentSection = 'languages';
+        lastWasArrowInterest = false;
         const langItems = rest.split(/[,;•|]|\s-\s/).map(s => s.trim()).filter(Boolean);
         cv.languages.push(...langItems);
       } else {
@@ -271,9 +298,21 @@ function parseCVText(pdfText) {
         currentSection = 'interests';
         currentItem = null;
         cv.interests.push(rest ? `${rawLabel} : ${rest}` : rawLabel);
+        lastWasArrowInterest = true;
       }
       continue;
     }
+
+    // A narrow sidebar wraps one arrow-bullet interest's text onto the next
+    // line (e.g. "→ Illustration : dessin numerique et" / "peinture"). That
+    // continuation carries no label of its own - glue it back onto the
+    // bullet it belongs to instead of filing it as a new, meaningless entry.
+    if (lastWasArrowInterest && currentSection === 'interests') {
+      cv.interests[cv.interests.length - 1] = (cv.interests[cv.interests.length - 1] + ' ' + trimmed).trim();
+      trackRaw(trimmed);
+      continue;
+    }
+    lastWasArrowInterest = false;
 
     // Detect contact info on early lines
     if (!currentSection && lines.indexOf(line) < 10) {
@@ -312,8 +351,16 @@ function parseCVText(pdfText) {
     // "education" est explicitement exclue : ses propres dates de diplome
     // sont deja gerees par la branche degreeMatch/hyphenEduMatch ci-dessous
     // et ne doivent jamais etre reinterpretees comme une nouvelle mission.
+    // A "Company - Location | Dates" line (the second, structured line of a
+    // "title line, then company+dates line" entry - see the 'experience'
+    // fill logic below) also carries its own date range, but it must be
+    // split into company/dates by that logic, not swallowed whole into
+    // `dates` by the coarser recovery below.
+    const looksLikeStructuredJobLine = currentSection === 'experience'
+      && /^(.+?)\s*[|–—]\s*(.+)$/.test(trimmed);
     const skipDateRecovery = currentSection === 'education'
-      || (currentSection === 'experience' && currentItem && !currentItem.dates);
+      || (currentSection === 'experience' && currentItem && !currentItem.dates)
+      || looksLikeStructuredJobLine;
     if (DATE_RANGE_RE.test(trimmed) && !skipDateRecovery) {
       startExperienceFromDateLine(trimmed);
       trackRaw(trimmed);
@@ -330,16 +377,47 @@ function parseCVText(pdfText) {
       // detect those too (hyphen must have spaces + end with a year in parens,
       // so "full-stack" or prose lines are NOT mistaken for a job header).
       const hyphenJobMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
+      // Just as common as "Company | Title" on one line: the title alone on
+      // its own line (a <p class="job-title">), with company/location/dates
+      // following on the *next* line - e.g. "Ingenieure Backend Senior"
+      // then "DataCorp - Paris | Janvier 2021 - Present". That second line
+      // still matches companyMatch (it has a "|"), but its right side is a
+      // date range, not a title - it must not clobber the title we already
+      // captured with the dates.
+      const companyMatchIsDateRange = companyMatch
+        && (DATE_RANGE_RE.test(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
       const newJob = (companyMatch || hyphenJobMatch) && (!currentItem || currentItem.company);
       if (newJob) {
+        const prevItem = currentItem;
         currentItem = { title: '', company: '', dates: '', description: [] };
+        if (companyMatchIsDateRange) {
+          // This "Company - Location | Dates" line starts a *new* job (the
+          // previous one already had its own company), so the title isn't
+          // on this line at all - it's the short plain line right before it
+          // (e.g. "Developpeuse Backend"), which - lacking any separator of
+          // its own to be recognized in time - had nowhere to go but the
+          // previous job's trailing description bullet. Recover it, same
+          // as startExperienceFromDateLine does for the equivalent case.
+          const prevRaw = recent.length > 0 ? recent[recent.length - 1].text : '';
+          if (prevRaw && prevRaw.length <= 70 && !/[|–—]/.test(prevRaw)) {
+            currentItem.title = prevRaw;
+            reclaim(prevRaw);
+            if (prevItem && prevItem.description.length &&
+                prevItem.description[prevItem.description.length - 1] === prevRaw) {
+              prevItem.description.pop();
+            }
+          }
+        }
         cv.experience.push(currentItem);
       }
       if (!currentItem) {
         currentItem = { title: '', company: '', dates: '', description: [] };
         cv.experience.push(currentItem);
       }
-      if (companyMatch) {
+      if (companyMatch && companyMatchIsDateRange && currentItem.title) {
+        currentItem.company = currentItem.company || companyMatch[1].trim();
+        currentItem.dates = companyMatch[2].trim();
+      } else if (companyMatch) {
         currentItem.company = companyMatch[1].trim();
         currentItem.title = companyMatch[2].trim();
       } else if (hyphenJobMatch) {
@@ -348,6 +426,11 @@ function parseCVText(pdfText) {
         currentItem.dates = '(' + hyphenJobMatch[3].trim() + ')';
       } else if (trimmed.match(/^\d{4}/) || trimmed.match(/20\d{2}/)) {
         currentItem.dates = trimmed;
+      } else if (!currentItem.title && !currentItem.company) {
+        // Nothing captured yet for this entry - the first plain content
+        // line right under a fresh "Experience" entry is the job title,
+        // not a bullet (a real bullet only ever follows a title/company).
+        currentItem.title = trimmed;
       } else {
         currentItem.description.push(trimmed);
       }
@@ -371,28 +454,39 @@ function parseCVText(pdfText) {
         currentItem.degree = hyphenEduMatch[1].trim();
         currentItem.institution = hyphenEduMatch[2].trim();
         currentItem.dates = '(' + hyphenEduMatch[3].trim() + ')';
+      } else if (/^.+?\s*\((?:19|20)\d{2}[^)]*\)\s*$/.test(trimmed) && currentItem.degree && !currentItem.institution) {
+        // "Institution (Year)" following an already-known degree line
+        // (mirrors the experience "Company - Location | Dates" case above).
+        const m = trimmed.match(/^(.+?)\s*\(((?:19|20)\d{2}[^)]*)\)\s*$/);
+        currentItem.institution = m[1].trim();
+        currentItem.dates = '(' + m[2].trim() + ')';
       } else if (trimmed.match(/20\d{2}/)) {
         currentItem.dates = trimmed;
+      } else if (!currentItem.degree && !currentItem.institution) {
+        // Same "title on its own line" shape as experience entries: the
+        // degree name (e.g. "Master Management de Projet") often precedes
+        // the institution/date line rather than sharing it.
+        currentItem.degree = trimmed;
       } else {
         currentItem.description.push(trimmed);
       }
     } else if (currentSection === 'skills') {
       // Split by common separators
       const skillItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTracked(cv.skills, trimmed, skillItems);
+      pushTrackedOrContinue(cv.skills, trimmed, skillItems);
     } else if (currentSection === 'certifications') {
       // Split by common separators (une certif par ligne ou separees par virgules)
       const certItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTracked(cv.certifications, trimmed, certItems);
+      pushTrackedOrContinue(cv.certifications, trimmed, certItems);
     } else if (currentSection === 'languages') {
       // Split par virgule/point-virgule : "Francais, Anglais" -> 2 entrees
       const langItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTracked(cv.languages, trimmed, langItems);
+      pushTrackedOrContinue(cv.languages, trimmed, langItems);
     } else if (currentSection === 'interests') {
       // Une ligne "Lecture, Randonnee, Photographie" -> 3 entrees ; une ligne
       // de prose libre (frequente sous "Centres d'interet") reste telle quelle.
       const interestItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTracked(cv.interests, trimmed, interestItems);
+      pushTrackedOrContinue(cv.interests, trimmed, interestItems);
     } else if (currentSection === 'summary') {
       cv.summary = cv.summary ? cv.summary + ' ' + trimmed : trimmed;
       trackRaw(trimmed);
