@@ -7,11 +7,26 @@
 // never matches French formatting (2-1-2-2-2-2 digit groups).
 const PHONE_RE = /(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|(\+33|0)[\s.-]?[1-9](?:[\s.-]?\d{2}){4}/;
 
-/**
- * Parse raw text from PDF into a structured CV object
- * @param {string} pdfText - Raw text extracted from PDF
- * @returns {Object} Structured CV
- */
+// Shared with extractJobTitle's own header-label matching below.
+function stripAccents(str) {
+  return str.normalize('NFD').replace(/[̀-ͯ]/g, '');
+}
+
+// "Francais, Anglais" / "Lecture • Randonnee" -> one entry per item, blank
+// fragments dropped. Used for every "one section, comma/bullet-separated
+// list" field (skills, certifications, languages, interests).
+function splitListItems(text, sep = /[,;•|]/) {
+  return text.split(sep).map(s => s.trim()).filter(Boolean);
+}
+
+// Lowercase+dedupe, then recapitalize just the first letter - used for the
+// three list fields (skills/certifications/languages) where a candidate's
+// own casing should win but "Java"/"java" must still collapse to one entry.
+function dedupeCapitalize(arr) {
+  return [...new Set(arr.map(s => s.toLowerCase()))]
+    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+}
+
 // Many CV templates render section headers ALL-CAPS with CSS letter-spacing
 // ("COMPÉTENCES" -> "C O M P É T E N C E S"). PDF text extraction turns that
 // visual letter-spacing into literal space characters between every glyph,
@@ -31,6 +46,65 @@ function despaceHeader(text) {
   if (shortCount / tokens.length < 0.6) return text;
   return tokens.join('');
 }
+
+// Word-boundary anchored so a real word/title doesn't false-match a header
+// keyword as a substring (e.g. "bac" inside "backend", "lang" inside
+// "language model" in a skills line). Module-level (static pattern, no
+// per-line/-CV state) - built once per process instead of once per parse.
+const sectionHeaders = [
+  // "missions/projets/realisations" only count as a header when they
+  // *open* the line - unlike "experience", they're common French words
+  // that show up inside perfectly ordinary job titles ("Chef de Projet
+  // Digital", "Gestion de Missions RH"), which are themselves short
+  // header-shaped lines and would otherwise falsely end the CV's contact
+  // block right after the name/role and swallow it into "experience".
+  { regex: /\b(experience|emploi|travail|career|work|professional)\b|^(missions?|projets?|realisations?)\b/i, key: 'experience' },
+  { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
+  { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
+  { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
+  { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
+  { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
+  { regex: /\b(interets?|hobbies|loisirs|passions?)\b/i, key: 'interests' },
+  // Liens/reseaux ne sont jamais une liste de contenu a conserver telle
+  // quelle (juste des pointeurs externes) - les reconnaitre comme un
+  // en-tete ferme la section precedente au lieu de laisser une URL
+  // github.com/... continuer a s'empiler dedans (ex: juste apres
+  // "Langues", un bloc "Social" + une URL ne sont pas des langues).
+  { regex: /\b(social|reseaux|liens|portfolio)\b/i, key: 'links' },
+];
+// Fallback for when despaceHeader had to fuse a letter-spaced header made
+// of *several* words (e.g. "R É S U M É   P R O F E S S I O N N E L" ->
+// "RESUMEPROFESSIONNEL") - collapsing away the inter-word gap along with
+// the inter-letter ones destroys the trailing \b the strict regex above
+// needs, so "resume" no longer matches once it's glued to "professionnel".
+// Only used when collapsing actually happened, on an already-short
+// candidate header line, so dropping the boundary check there is safe.
+const looseSectionHeaders = sectionHeaders.map(sh => ({
+  key: sh.key,
+  regex: new RegExp(sh.regex.source.replace(/\\b/g, ''), 'i'),
+}));
+
+// The `cv` fields that are simple comma/bullet-separated lists, filled the
+// same way regardless of which one is currently open.
+const SPLIT_LIST_SECTIONS = new Set(['skills', 'certifications', 'languages', 'interests']);
+
+// Reperage d'une ligne "dates de mission", quel que soit le format
+// ("Janvier a fevrier 2022", "2019 - 2020", "Mars 2018 a present"...).
+// Module-level for the same reason as sectionHeaders above - static
+// pattern, no need to rebuild it (by far the largest regex here) per parse.
+const MONTHS = 'janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|january|february|march|april|may|june|july|august|september|october|november|december';
+const DATE_RANGE_RE = new RegExp(
+  '(?:' +
+    // "Month? Year (a|à|-|to) Month? (Year|présent...)" — e.g. "2019 - 2020",
+    // "Janvier 2022 à mars 2023", "Mars 2018 à présent".
+    '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|à|-|–|—|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|présent|actuel|aujourd|current|now)' +
+    '|' +
+    // "Month (a|à|-|to) Month Year" — French idiom sharing one trailing
+    // year, e.g. "Juin à juillet 2021", "Avril à décembre 2022".
+    '\\b(?:' + MONTHS + ')\\b\\s*(?:a|à|-|–|—|to)\\s*\\b(?:' + MONTHS + ')\\b\\s*\\b(?:19|20)\\d{2}\\b' +
+  ')',
+  'i'
+);
 
 function parseCVText(pdfText) {
   const lines = pdfText.split('\n').filter(l => l.trim());
@@ -55,58 +129,6 @@ function parseCVText(pdfText) {
   // next visual line, which would otherwise be read as a brand new,
   // meaningless interest entry instead of the rest of the same one.
   let lastWasArrowInterest = false;
-
-  // Word-boundary anchored so a real word/title doesn't false-match a header
-  // keyword as a substring (e.g. "bac" inside "backend", "lang" inside
-  // "language model" in a skills line).
-  const sectionHeaders = [
-    // "missions/projets/realisations" only count as a header when they
-    // *open* the line - unlike "experience", they're common French words
-    // that show up inside perfectly ordinary job titles ("Chef de Projet
-    // Digital", "Gestion de Missions RH"), which are themselves short
-    // header-shaped lines and would otherwise falsely end the CV's contact
-    // block right after the name/role and swallow it into "experience".
-    { regex: /\b(experience|emploi|travail|career|work|professional)\b|^(missions?|projets?|realisations?)\b/i, key: 'experience' },
-    { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
-    { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
-    { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
-    { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
-    { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
-    { regex: /\b(interets?|hobbies|loisirs|passions?)\b/i, key: 'interests' },
-    // Liens/reseaux ne sont jamais une liste de contenu a conserver telle
-    // quelle (juste des pointeurs externes) - les reconnaitre comme un
-    // en-tete ferme la section precedente au lieu de laisser une URL
-    // github.com/... continuer a s'empiler dedans (ex: juste apres
-    // "Langues", un bloc "Social" + une URL ne sont pas des langues).
-    { regex: /\b(social|reseaux|liens|portfolio)\b/i, key: 'links' },
-  ];
-  // Fallback for when despaceHeader had to fuse a letter-spaced header made
-  // of *several* words (e.g. "R É S U M É   P R O F E S S I O N N E L" ->
-  // "RESUMEPROFESSIONNEL") - collapsing away the inter-word gap along with
-  // the inter-letter ones destroys the trailing \b the strict regex above
-  // needs, so "resume" no longer matches once it's glued to "professionnel".
-  // Only used when collapsing actually happened, on an already-short
-  // candidate header line, so dropping the boundary check there is safe.
-  const looseSectionHeaders = sectionHeaders.map(sh => ({
-    key: sh.key,
-    regex: new RegExp(sh.regex.source.replace(/\\b/g, ''), 'i'),
-  }));
-
-  // Reperage d'une ligne "dates de mission", quel que soit le format
-  // ("Janvier a fevrier 2022", "2019 - 2020", "Mars 2018 a present"...).
-  const MONTHS = 'janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre|january|february|march|april|may|june|july|august|september|october|november|december';
-  const DATE_RANGE_RE = new RegExp(
-    '(?:' +
-      // "Month? Year (a|\u00e0|-|to) Month? (Year|pr\u00e9sent...)" \u2014 e.g. "2019 - 2020",
-      // "Janvier 2022 \u00e0 mars 2023", "Mars 2018 \u00e0 pr\u00e9sent".
-      '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|\u00e0|-|\u2013|\u2014|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|pr\u00e9sent|actuel|aujourd|current|now)' +
-      '|' +
-      // "Month (a|\u00e0|-|to) Month Year" \u2014 French idiom sharing one trailing
-      // year, e.g. "Juin \u00e0 juillet 2021", "Avril \u00e0 d\u00e9cembre 2022".
-      '\\b(?:' + MONTHS + ')\\b\\s*(?:a|\u00e0|-|\u2013|\u2014|to)\\s*\\b(?:' + MONTHS + ')\\b\\s*\\b(?:19|20)\\d{2}\\b' +
-    ')',
-    'i'
-  );
 
   // Les 2-3 dernieres lignes "brutes" vues, avec (si elles ont ete rangees
   // quelque part) le tableau + les items qu'elles y ont ajoutes - pour
@@ -135,6 +157,21 @@ function parseCVText(pdfText) {
     trackRaw(text, arr, items);
   }
 
+  // A raw line that turned out to be a misfiled title/company can have
+  // landed in one of two places before the date line that reveals its real
+  // role showed up: a pushTracked-tracked array (skills/languages/etc, via
+  // reclaim) or the trailing bullet of an already-open experience entry's
+  // description. Undo both. Shared by startExperienceFromDateLine and the
+  // equivalent "Company - Location | Dates" recovery in the experience fill
+  // logic below, so the two don't drift into subtly different repairs.
+  function reclaimTrailingLine(item, text) {
+    reclaim(text);
+    if (item && item.description && item.description.length &&
+        item.description[item.description.length - 1] === text) {
+      item.description.pop();
+    }
+  }
+
   // A narrow sidebar column often wraps a single entry across two visual
   // lines right after its opening "(" - e.g. "Wolof (natif)" printed as
   // "Wolof" then "(natif)" once the comma-separated line it was part of no
@@ -157,43 +194,19 @@ function parseCVText(pdfText) {
   function startExperienceFromDateLine(dateLine) {
     const prev1 = recent.length > 0 ? recent[recent.length - 1].text : '';
     const prev2 = recent.length > 1 ? recent[recent.length - 2].text : '';
+    const prevItem = currentItem;
     let company = '';
     let title = '';
-    // popOrder holds exactly the raw lines actually consumed into
-    // title/company, most-recent-first - i.e. in the same order they'd
-    // appear at the tail of a preceding item's `description` if they'd
-    // leaked in there before this recovery kicked in.
-    const popOrder = [];
+    // Reclaimed most-recent-first, so a description tail of [..., prev2,
+    // prev1] pops prev1 before prev2 becomes the new tail to check.
     if (prev1 && /[\u2014\u2013-]/.test(prev1) && prev1.length <= 70) {
       title = prev1;
       company = prev2 && prev2.length <= 50 ? prev2 : '';
-      popOrder.push(prev1);
-      if (company) popOrder.push(prev2);
+      reclaimTrailingLine(prevItem, prev1);
+      if (company) reclaimTrailingLine(prevItem, prev2);
     } else {
       company = prev1 || '';
-      if (company) popOrder.push(prev1);
-    }
-    if (title) reclaim(prev1);
-    if (company) reclaim(company === prev1 ? prev1 : prev2);
-    // Si les lignes qu'on vient de recuperer avaient deja ete ajoutees en
-    // description du job precedent (avant qu'on comprenne qu'elles
-    // appartenaient au suivant - un en-tete n'a pas toujours suspendu la
-    // section entre-temps), on les retire pour eviter le doublon. On ne
-    // depile jamais plus que ce qui a reellement ete consomme ci-dessus,
-    // et seulement si ca correspond exactement, dans l'ordre - pour ne
-    // jamais toucher a du contenu legitime qui precede.
-    let popIdx = 0;
-    while (
-      currentItem && currentItem.description && currentItem.description.length > 0 &&
-      popIdx < popOrder.length
-    ) {
-      const last = currentItem.description[currentItem.description.length - 1];
-      if (last === popOrder[popIdx]) {
-        currentItem.description.pop();
-        popIdx++;
-      } else {
-        break;
-      }
+      if (company) reclaimTrailingLine(prevItem, prev1);
     }
     currentItem = { title, company, dates: dateLine, description: [] };
     cv.experience.push(currentItem);
@@ -214,10 +227,12 @@ function parseCVText(pdfText) {
     // d'abord un eventuel en-tete "espace lettre par lettre" (voir
     // despaceHeader) avant de juger sa forme et son contenu.
     const despacedHeader = despaceHeader(trimmed);
-    const normalized = despacedHeader.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
     const looksLikeHeader = despacedHeader.length <= 40 && despacedHeader.split(/\s+/).length <= 5 && !/[.!?]$/.test(despacedHeader);
     let matchedSection = null;
     if (looksLikeHeader) {
+      // Only computed once we know this line is even shaped like a header -
+      // most lines (long description bullets) never reach this point.
+      const normalized = stripAccents(despacedHeader);
       for (const sh of sectionHeaders) {
         if (sh.regex.test(normalized)) {
           matchedSection = sh.key;
@@ -283,12 +298,12 @@ function parseCVText(pdfText) {
     const arrowBulletMatch = trimmed.match(/^[→▸►]\s*([^:]{2,40}):\s*(.*)$/);
     if (arrowBulletMatch) {
       const rawLabel = arrowBulletMatch[1].trim();
-      const label = rawLabel.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      const label = stripAccents(rawLabel).toLowerCase();
       const rest = arrowBulletMatch[2].trim();
       if (/\blangue/.test(label)) {
         currentSection = 'languages';
         lastWasArrowInterest = false;
-        const langItems = rest.split(/[,;•|]|\s-\s/).map(s => s.trim()).filter(Boolean);
+        const langItems = splitListItems(rest, /[,;•|]|\s-\s/);
         cv.languages.push(...langItems);
       } else {
         // Not a language sub-block — this is exactly what a "Centres
@@ -401,11 +416,7 @@ function parseCVText(pdfText) {
           const prevRaw = recent.length > 0 ? recent[recent.length - 1].text : '';
           if (prevRaw && prevRaw.length <= 70 && !/[|–—]/.test(prevRaw)) {
             currentItem.title = prevRaw;
-            reclaim(prevRaw);
-            if (prevItem && prevItem.description.length &&
-                prevItem.description[prevItem.description.length - 1] === prevRaw) {
-              prevItem.description.pop();
-            }
+            reclaimTrailingLine(prevItem, prevRaw);
           }
         }
         cv.experience.push(currentItem);
@@ -470,23 +481,16 @@ function parseCVText(pdfText) {
       } else {
         currentItem.description.push(trimmed);
       }
-    } else if (currentSection === 'skills') {
-      // Split by common separators
-      const skillItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTrackedOrContinue(cv.skills, trimmed, skillItems);
-    } else if (currentSection === 'certifications') {
-      // Split by common separators (une certif par ligne ou separees par virgules)
-      const certItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTrackedOrContinue(cv.certifications, trimmed, certItems);
-    } else if (currentSection === 'languages') {
-      // Split par virgule/point-virgule : "Francais, Anglais" -> 2 entrees
-      const langItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTrackedOrContinue(cv.languages, trimmed, langItems);
-    } else if (currentSection === 'interests') {
-      // Une ligne "Lecture, Randonnee, Photographie" -> 3 entrees ; une ligne
-      // de prose libre (frequente sous "Centres d'interet") reste telle quelle.
-      const interestItems = trimmed.split(/[,;\u2022|]/).map(s => s.trim()).filter(Boolean);
-      pushTrackedOrContinue(cv.interests, trimmed, interestItems);
+    } else if (SPLIT_LIST_SECTIONS.has(currentSection)) {
+      // Skills/certifications/languages/interests all fill the same way: a
+      // "Francais, Anglais" style line becomes several entries; a free-prose
+      // line (common under "Centres d'interet") stays as one. `continue`
+      // here (rather than falling through to the trailing trackRaw below)
+      // because pushTrackedOrContinue already tracked this line itself -
+      // tracking it twice would silently shrink the "last 2-3 raw lines"
+      // lookback window reclaim()/the stat-tile check rely on.
+      pushTrackedOrContinue(cv[currentSection], trimmed, splitListItems(trimmed));
+      continue;
     } else if (currentSection === 'summary') {
       cv.summary = cv.summary ? cv.summary + ' ' + trimmed : trimmed;
       trackRaw(trimmed);
@@ -501,15 +505,10 @@ function parseCVText(pdfText) {
     trackRaw(trimmed);
   }
 
-  // Deduplicate skills
-  cv.skills = [...new Set(cv.skills.map(s => s.toLowerCase()))]
-    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
-
-  // Deduplicate certifications & languages
-  cv.certifications = [...new Set(cv.certifications.map(s => s.toLowerCase()))]
-    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
-  cv.languages = [...new Set(cv.languages.map(s => s.toLowerCase()))]
-    .map(s => s.charAt(0).toUpperCase() + s.slice(1));
+  // Deduplicate skills, certifications & languages
+  cv.skills = dedupeCapitalize(cv.skills);
+  cv.certifications = dedupeCapitalize(cv.certifications);
+  cv.languages = dedupeCapitalize(cv.languages);
 
   // Interests are often full sentences ("Twitch", "Vue.js", acronyms) —
   // dedupe on exact match only, without the lowercase/recapitalize pass
@@ -566,7 +565,7 @@ function extractJobTitle(jobText) {
   // and copy-pasted postings often put one near the top.
   const labelRe = /^(poste|intitule du poste|titre du poste|job title|position|role)\s*[:\-–]\s*(.{3,90})$/i;
   for (const line of lines.slice(0, 15)) {
-    const normalized = line.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const normalized = stripAccents(line);
     const m = normalized.match(labelRe);
     if (m) return line.slice(line.search(/[:\-–]/) + 1).trim().replace(/^[:\-–]\s*/, '').replace(/[.,;]+$/, '');
   }
@@ -668,20 +667,31 @@ function extractInterleavedText(main, rail) {
   return rows.map(r => r.text).join('\n');
 }
 
+// Bounding width + total character count of one column - the two numbers
+// isAnnotationRail below needs, computed once per side rather than
+// re-derived from scratch every time that side is checked as a candidate
+// rail (each of left/right is checked against the other).
+function columnStats(items) {
+  let minX = Infinity, maxX = -Infinity, chars = 0;
+  for (const it of items) {
+    const x0 = it.transform[4];
+    const x1 = x0 + (it.width || 0);
+    if (x0 < minX) minX = x0;
+    if (x1 > maxX) maxX = x1;
+    chars += it.str.length;
+  }
+  return { empty: items.length === 0, width: items.length ? maxX - minX : 0, chars };
+}
+
 // Narrow-rail heuristic: the annotation side is much thinner than the main
 // side and carries far less text overall (a handful of short dates/places,
 // not a parallel section of skills/education prose) - a genuine sidebar is
 // both wide and comparably substantial, so this stays conservative enough
 // not to touch the sidebar-style templates extractColumnText already
 // handles correctly.
-function isAnnotationRail(items, otherItems, pageWidth) {
-  if (!items.length || !otherItems.length) return false;
-  const minX = Math.min(...items.map(it => it.transform[4]));
-  const maxX = Math.max(...items.map(it => it.transform[4] + (it.width || 0)));
-  const width = maxX - minX;
-  const chars = items.reduce((n, it) => n + it.str.length, 0);
-  const otherChars = otherItems.reduce((n, it) => n + it.str.length, 0);
-  return width < pageWidth * 0.3 && chars < otherChars * 0.3;
+function isAnnotationRail(stats, otherStats, pageWidth) {
+  if (stats.empty || otherStats.empty) return false;
+  return stats.width < pageWidth * 0.3 && stats.chars < otherStats.chars * 0.3;
 }
 
 // Detects a vertical "gap band" that separates two columns of a sidebar-style
@@ -698,12 +708,17 @@ function detectColumnSplitX(items, pageWidth) {
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
   const bandHeight = (maxY - minY) / BANDS || 1;
+  // Bucket every item into its band in one pass, instead of re-filtering
+  // the full item array once per band (was O(BANDS * n), now O(n)).
+  const bandBuckets = Array.from({ length: BANDS }, () => []);
+  for (const it of items) {
+    const b = Math.floor((it.transform[5] - minY) / bandHeight);
+    if (b >= 0 && b < BANDS) bandBuckets[b].push(it);
+  }
   const votes = new Array(BIN_COUNT).fill(0);
   let bandsWithContent = 0;
   for (let b = 0; b < BANDS; b++) {
-    const bandMinY = minY + b * bandHeight;
-    const bandMaxY = bandMinY + bandHeight;
-    const bandItems = items.filter(it => it.transform[5] >= bandMinY && it.transform[5] < bandMaxY);
+    const bandItems = bandBuckets[b];
     if (bandItems.length < 2) continue;
     bandsWithContent++;
     const covered = new Array(BIN_COUNT).fill(false);
@@ -797,10 +812,12 @@ function extractPageText(items, pageWidth) {
     const center = tx[4] + (item.width || 0) / 2;
     (center < splitX ? left : right).push(item);
   }
-  if (isAnnotationRail(right, left, pageWidth)) {
+  const leftStats = columnStats(left);
+  const rightStats = columnStats(right);
+  if (isAnnotationRail(rightStats, leftStats, pageWidth)) {
     return extractInterleavedText(left, right) + '\n';
   }
-  if (isAnnotationRail(left, right, pageWidth)) {
+  if (isAnnotationRail(leftStats, rightStats, pageWidth)) {
     return extractInterleavedText(right, left) + '\n';
   }
   const leftText = extractColumnText(left);
