@@ -12,6 +12,26 @@ const PHONE_RE = /(\+?\d{1,3}[\s.-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}|(\+33|
  * @param {string} pdfText - Raw text extracted from PDF
  * @returns {Object} Structured CV
  */
+// Many CV templates render section headers ALL-CAPS with CSS letter-spacing
+// ("COMPÉTENCES" -> "C O M P É T E N C E S"). PDF text extraction turns that
+// visual letter-spacing into literal space characters between every glyph,
+// which defeats both the "<=5 words" header heuristic and the keyword regex
+// below (neither "competences" nor a short word count survives being split
+// into ten single-character tokens). Detect that pattern - most tokens are
+// a single character (occasionally two, when kerning glues two glyphs into
+// one run, e.g. "F O R M AT I O N") - and collapse it back into real words
+// before running header detection, so these headers aren't silently missed
+// (which otherwise leaves the parser stuck in whatever section preceded it,
+// dumping every following section's content - skills, education, languages,
+// interests - into that section instead).
+function despaceHeader(text) {
+  const tokens = text.split(/\s+/).filter(Boolean);
+  if (tokens.length < 3) return text;
+  const shortCount = tokens.filter(t => t.length <= 2).length;
+  if (shortCount / tokens.length < 0.6) return text;
+  return tokens.join('');
+}
+
 function parseCVText(pdfText) {
   const lines = pdfText.split('\n').filter(l => l.trim());
 
@@ -49,6 +69,17 @@ function parseCVText(pdfText) {
     // "Langues", un bloc "Social" + une URL ne sont pas des langues).
     { regex: /\b(social|reseaux|liens|portfolio)\b/i, key: 'links' },
   ];
+  // Fallback for when despaceHeader had to fuse a letter-spaced header made
+  // of *several* words (e.g. "R É S U M É   P R O F E S S I O N N E L" ->
+  // "RESUMEPROFESSIONNEL") - collapsing away the inter-word gap along with
+  // the inter-letter ones destroys the trailing \b the strict regex above
+  // needs, so "resume" no longer matches once it's glued to "professionnel".
+  // Only used when collapsing actually happened, on an already-short
+  // candidate header line, so dropping the boundary check there is safe.
+  const looseSectionHeaders = sectionHeaders.map(sh => ({
+    key: sh.key,
+    regex: new RegExp(sh.regex.source.replace(/\\b/g, ''), 'i'),
+  }));
 
   // Reperage d'une ligne "dates de mission", quel que soit le format
   // ("Janvier a fevrier 2022", "2019 - 2020", "Mars 2018 a present"...).
@@ -154,9 +185,12 @@ function parseCVText(pdfText) {
     // systemes distribues.") gets misread as a new section and wipes out
     // the real content that follows.
     // Normalise les accents pour matcher "Experience" -> "experience",
-    // "Competences" -> "competences" (regex sans accents).
-    const normalized = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const looksLikeHeader = trimmed.length <= 40 && trimmed.split(/\s+/).length <= 5 && !/[.!?]$/.test(trimmed);
+    // "Competences" -> "competences" (regex sans accents). On recolle
+    // d'abord un eventuel en-tete "espace lettre par lettre" (voir
+    // despaceHeader) avant de juger sa forme et son contenu.
+    const despacedHeader = despaceHeader(trimmed);
+    const normalized = despacedHeader.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const looksLikeHeader = despacedHeader.length <= 40 && despacedHeader.split(/\s+/).length <= 5 && !/[.!?]$/.test(despacedHeader);
     let matchedSection = null;
     if (looksLikeHeader) {
       for (const sh of sectionHeaders) {
@@ -165,6 +199,39 @@ function parseCVText(pdfText) {
           break;
         }
       }
+      if (!matchedSection && despacedHeader !== trimmed) {
+        for (const sh of looseSectionHeaders) {
+          if (sh.regex.test(normalized)) {
+            matchedSection = sh.key;
+            break;
+          }
+        }
+      }
+      // Stat-tile decoys: some templates put a big number ("9+", "6", "13")
+      // next to a 1-2 row caption ("Années d'expérience", "Compétences
+      // clés") right under the header, before the CV's actual sections
+      // start. Those captions are short, standalone and legitimately
+      // contain a section keyword ("expérience", "compétences") so they
+      // pass every check above exactly like a real header - but they
+      // aren't one. Only suppress while no real section has been entered
+      // yet (currentSection is still null): once the CV is past its
+      // header/stats block, a nearby number is far more likely to be
+      // mundane (a graduation year two lines above "Langues") than another
+      // stat caption, so this guard must not reach that far.
+      if (matchedSection && currentSection === null && recent.slice(-2).some(r => /^\d+\+?$/.test(r.text))) {
+        matchedSection = null;
+      }
+    }
+
+    // Some CV templates print a lone icon/badge label ("Poste") next to each
+    // timeline entry instead of a real icon glyph (font fallback). It never
+    // carries information - keep tracking it in `recent` (a date line just
+    // after it may still need to reclaim the actual title/company around
+    // it) but never file it as real bullet content under whatever section
+    // is current.
+    if (/^poste$/i.test(trimmed)) {
+      trackRaw(trimmed);
+      continue;
     }
 
     if (matchedSection) {
