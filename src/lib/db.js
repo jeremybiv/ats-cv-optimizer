@@ -35,6 +35,19 @@ export async function initDB() {
       count INTEGER DEFAULT 0,
       PRIMARY KEY (user_id, month)
     )`;
+    // Fix #50 (27/08/2026) : la table generated_cvs n'était JAMAIS créée par
+    // initDB() → INSERT INTO generated_cvs échouait silencieusement et
+    // l'historique des CV générés était toujours vide ("Aucun CV sauvegardé").
+    await sql`CREATE TABLE IF NOT EXISTS generated_cvs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id),
+      job_title VARCHAR(255),
+      company VARCHAR(255),
+      template_used VARCHAR(50) DEFAULT 'visual',
+      html TEXT,
+      score INTEGER,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`;
     return true;
   } catch (e) {
     console.error('[DB] Init error:', e.message);
