@@ -944,4 +944,20 @@ async function parseTextFromBase64(base64) {
   }
 }
 
-module.exports = { parseCVText, parseJobDescription, parseTextFromBase64, extractJobTitle };
+// Structure le CV via Claude (Haiku) puis vérifie/complète avec le parseur
+// regex historique - IA d'abord car nettement plus robuste face aux mises
+// en page atypiques (c'est justement ce qui provoquait le bug "tout finit
+// dans centres d'intérêt"), regex en filet de sécurité si l'appel échoue
+// (clé API absente, timeout, erreur API, résultat invalide/dégénéré) pour
+// ne jamais bloquer la génération du CV.
+async function parseCVSmart(cvText) {
+  try {
+    const { parseCVWithAI } = require('./aiParser');
+    return await parseCVWithAI(cvText);
+  } catch (e) {
+    console.error('[parsers] IA parsing indisponible, fallback regex:', e.message);
+    return parseCVText(cvText);
+  }
+}
+
+module.exports = { parseCVText, parseCVSmart, parseJobDescription, parseTextFromBase64, extractJobTitle };
