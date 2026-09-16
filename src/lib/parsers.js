@@ -62,10 +62,13 @@ const sectionHeaders = [
   // Digital", "Gestion de Missions RH"), which are themselves short
   // header-shaped lines and would otherwise falsely end the CV's contact
   // block right after the name/role and swallow it into "experience".
-  { regex: /\b(experience|emploi|travail|career|work|professional)\b|^(missions?|projets?|realisations?)\b/i, key: 'experience' },
-  { regex: /\b(education|formation|etudes|diplome|degree|school|university|college|bac)\b/i, key: 'education' },
-  { regex: /\b(competences|skills|technologies|tools|langages|programming)\b/i, key: 'skills' },
-  { regex: /\b(certifications|certificates|certificat)\b/i, key: 'certifications' },
+  // Fix #52 (05/09/2026) : formes PLURIELLES acceptées ("EXPERIENCES"
+  // n'était pas reconnu → section jamais ouverte → placeholders « Poste »).
+  { regex: /\b(experiences?|emplois?|travails?|travaux|career|work|professional)\b|^(missions?|projets?|realisations?)\b/i, key: 'experience' },
+  // Fix #52 : idem pour "FORMATIONS" / "DIPLOMES" (pluriels).
+  { regex: /\b(education|formations?|etudes?|diplomes?|degree|school|university|college|bac)\b/i, key: 'education' },
+  { regex: /\b(competences?|skills?|technologies?|tools?|langages?|programming)\b/i, key: 'skills' },
+  { regex: /\b(certifications?|certificates?|certificats?)\b/i, key: 'certifications' },
   { regex: /\b(langues|languages|lang)\b/i, key: 'languages' },
   { regex: /\b(resume|summary|profil|profile|about|objectif)\b/i, key: 'summary' },
   { regex: /\b(interets?|hobbies|loisirs|passions?)\b/i, key: 'interests' },
@@ -407,16 +410,41 @@ function parseCVText(pdfText) {
     const dotSeparatedJobLine = currentSection === 'experience'
       && dotSeparatedParts.length >= 2
       && hasDateRange(dotSeparatedParts[0]);
+    // Fix #52 (05/09/2026) : "2020-2026 - Lead Backend Engineer - FintechCorp"
+    // (dates - titre - société séparés par des TIRETS simples). Non couvert par
+    // dotSeparatedJobLine (· • |) : sans cette branche la ligne était avalée par
+    // la récupération de date, le titre restait vide → placeholder « Poste » et
+    // les formations se retrouvaient collées dans la section Expérience.
+    const dashParts = trimmed.split(/\s+-\s+/).map(s => s.trim()).filter(Boolean);
+    const dashSeparatedJobLine = currentSection === 'experience'
+      && dashParts.length >= 3
+      && hasDateRange(dashParts[0]);
     const skipDateRecovery = currentSection === 'education'
       || (currentSection === 'experience' && currentItem && !currentItem.dates)
       || looksLikeStructuredJobLine
       || dotSeparatedJobLine
+      || dashSeparatedJobLine
       // Ligne "Titre - Société (année)" : la date entre parenthèses fait
       // matcher DATE_RANGE_RE ("2017-2020" dans "(2017-2020)") mais cette
       // ligne est déjà gérée par hyphenJobMatch dans la branche experience —
       // le laisser passer par startExperienceFromDateLine volerait la ligne
       // précédente (souvent une description) comme company.
       || (currentSection === 'experience' && /\(\s*(?:19|20)\d{2}/.test(trimmed));
+    if (dashSeparatedJobLine) {
+      const datePart = dashParts[0];
+      const titlePart = dashParts[1] || '';
+      const companyPart = dashParts.length >= 3 ? dashParts[2] : '';
+      if (currentItem && currentItem.dates && currentItem.dates !== datePart) {
+        const newItem = { title: titlePart, company: companyPart, dates: datePart, description: [] };
+        cv.experience.push(newItem);
+        currentItem = newItem;
+      } else {
+        currentItem = { title: titlePart, company: companyPart, dates: datePart, description: [] };
+        if (!cv.experience.includes(currentItem)) cv.experience.push(currentItem);
+      }
+      trackRaw(trimmed);
+      continue;
+    }
     if (dotSeparatedJobLine) {
       const parts = dotSeparatedParts;
       const datePart = parts[0];
@@ -504,6 +532,25 @@ function parseCVText(pdfText) {
         currentItem.description.push(trimmed);
       }
     } else if (currentSection === 'education') {
+      // Fix #52 (05/09/2026) : "2014-2016 - Master Informatique, Université
+      // Lyon 1" (dates en TÊTE). Sans cette branche, aucune formation n'était
+      // extraite → placeholder « Diplome et formation pertinente. » dans le CV
+      // généré. Format : DATES - DIPLÔME, INSTITUTION
+      const dashEduDate = trimmed.match(/^(\d{4}\s*[-\u2013\u2014]\s*(?:\d{4}|aujourd'hui|present|présent|en cours))\s*[-\u2013\u2014]\s*(.+)$/i);
+      if (dashEduDate) {
+        if (!currentItem || currentItem.degree || currentItem.institution) {
+          currentItem = { degree: '', institution: '', dates: '', description: [] };
+          cv.education.push(currentItem);
+        }
+        currentItem.dates = dashEduDate[1].trim();
+        const rest = dashEduDate[2].trim();
+        // "Master Informatique, Université Lyon 1" → degree / institution
+        const commaSplit = rest.split(/\s*,\s*/);
+        currentItem.degree = commaSplit[0] || '';
+        currentItem.institution = commaSplit.slice(1).join(', ') || '';
+        trackRaw(trimmed);
+        continue;
+      }
       const degreeMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
       // French CVs: "Diploma - Institution (year)" - detect with plain hyphen
       const hyphenEduMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
@@ -648,6 +695,38 @@ function extractJobTitle(jobText) {
   const first = lines[0];
   if (first.length <= 90 && first.split(/\s+/).length <= 12 && !/[.!?]$/.test(first)) {
     return first;
+  }
+
+  return '';
+}
+
+// Fix #53 (05/09/2026) : l'historique affichait « CV sans titre » car le front
+// envoyait jobTitle/company vides en dur. On extrait aussi le nom de
+// l'entreprise depuis l'offre ("Entreprise : X", "chez X", "X recrute").
+function extractCompany(jobText) {
+  if (!jobText || typeof jobText !== 'string') return '';
+  const lines = jobText.split('\n').map(l => l.trim()).filter(Boolean);
+  if (lines.length === 0) return '';
+
+  // 1) Ligne étiquetée : "Entreprise : X", "Société : X", "Company: X"
+  const labelRe = /^(entreprise|societe|société|company|employeur|client)\s*[:\-–]\s*(.{2,80})$/i;
+  for (const line of lines.slice(0, 20)) {
+    const m = stripAccents(line).match(labelRe);
+    if (m) return line.slice(line.search(/[:\-–]/) + 1).trim().replace(/[.,;]+$/, '');
+  }
+
+  // 2) "chez X" / "au sein de X" / "rejoindre X"
+  const chezRe = /\b(?:chez|au sein de|rejoindre|pour)\s+([A-ZÀ-Ý][\wÀ-ÿ&'’.\- ]{2,50}?)(?=\s*[.,;(]|\s+(?:en|à|pour|qui|nous|vous)\b|$)/;
+  for (const line of lines.slice(0, 12)) {
+    const m = line.match(chezRe);
+    if (m && m[1] && m[1].trim().length >= 2) return m[1].trim();
+  }
+
+  // 3) "X recrute" / "X recherche" — le nom avant le verbe
+  const recruteRe = /^([A-ZÀ-Ý][\wÀ-ÿ&'’.\- ]{2,50}?)\s+(?:recrute|recherche|est à la recherche)/;
+  for (const line of lines.slice(0, 12)) {
+    const m = line.match(recruteRe);
+    if (m && m[1] && m[1].trim().length >= 2) return m[1].trim();
   }
 
   return '';
@@ -960,4 +1039,4 @@ async function parseCVSmart(cvText) {
   }
 }
 
-module.exports = { parseCVText, parseCVSmart, parseJobDescription, parseTextFromBase64, extractJobTitle };
+module.exports = { parseCVText, parseCVSmart, parseJobDescription, parseTextFromBase64, extractJobTitle, extractCompany };
