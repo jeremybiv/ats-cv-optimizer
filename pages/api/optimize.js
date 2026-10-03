@@ -30,6 +30,12 @@ export default async function handler(req, res) {
     }
 
     const { cvBase64, jobUrl, jobText, strictMode, cvText: directCvText, linkedinData } = req.body;
+    // Fix #55 : ne jamais générer un CV « générique » (placeholders Candidat /
+    // email@exemple.com / « Diplome et formation pertinente. »). Un CV source est
+    // obligatoire — le frontend désactive déjà le bouton, mais on protège l'API.
+    if (!cvBase64 && !directCvText && !linkedinData) {
+      return res.status(400).json({ error: 'Aucun CV fourni — ajoute ton CV (PDF) ou importe ton profil LinkedIn.' });
+    }
     let jd = jobText;
     if (jobUrl && !jd) jd = await extractJobDescription(jobUrl);
     if (!jd) throw new Error('Aucune offre d emploi fournie.');

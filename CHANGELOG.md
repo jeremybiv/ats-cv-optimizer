@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-03
+- [fix] Réinitialiser ne vidait pas l'`<input type="file">` : re-sélectionner le même CV après un reset ne redéclenchait pas `onChange` → aucun CV rattaché à la requête → CV générique « Candidat » avec placeholders (`email@exemple.com`, « Diplome et formation pertinente. »). Le reset vide désormais l'input DOM (issue #55)
+- [fix] Le CV source et l'offre sont désormais tous deux requis : bouton « Optimiser mon CV » désactivé sinon (au lieu d'une génération silencieuse sans CV), et `POST /api/optimize` renvoie 400 si aucun CV n'est fourni (issue #55)
+
 ## 2026-07-31
 - [feat] Lettre de motivation IA (cover letter) générée depuis le CV + l offre (PR #27)
 - [feat] Historique : bouton dans le header, liste des CV sauvegardés, restauration au clic + sauvegarde auto après optimisation (PR #29)
