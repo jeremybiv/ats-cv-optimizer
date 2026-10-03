@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { authOptions } from '../../src/lib/auth';
 import { extractJobDescription } from '../../src/lib/jobFetcher';
-import { parseTextFromBase64, parseCVSmart, extractJobTitle } from '../../src/lib/parsers';
+import { parseTextFromBase64, parseCVSmart, extractJobTitle, extractCompany } from '../../src/lib/parsers';
 import { extractKeywords, scoreCV, generateOptimizedCV, formatCVHTML } from '../../src/lib/atsEngine';
 import { findUserByEmail, getUserUsage, incrementUsage } from '../../src/lib/db';
 
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
     // back to a literal "Titre du poste visé" placeholder that leaked
     // straight into the exported document instead of ever showing the
     // actual target role.
-    const jobP = { title: extractJobTitle(jd), company: '', location: '', type: '', summary: jd.slice(0, 500), description: jd };
+    const jobP = { title: extractJobTitle(jd), company: extractCompany(jd), location: '', type: '', summary: jd.slice(0, 500), description: jd };
 
     const optimizedHTML = generateOptimizedCV({ cvText, job: jobP, jobKeywords: keywords, parsedCV, strictMode });
     const finalHTML = formatCVHTML(optimizedHTML, keywords);
@@ -105,7 +105,7 @@ export default async function handler(req, res) {
 
     res.json({
       html: finalHTML,
-      matchScore: cvScore.matchScore || Math.min(parseInt(keywords.technical?.length || 0) * 12 + 30, 95),
+      matchScore: cvScore.matchScore || Math.min(parseInt(keywords.technical?.length || 0) * 12 + 30, 100),
       keywordCount: keywords.all?.length || keywords.length || 0,
       missingCount: cvScore.missingCount || 0,
       structureScore: cvScore.structureScore || 80,
@@ -113,6 +113,8 @@ export default async function handler(req, res) {
       foundKeywords: cvScore.foundKeywords || (keywords.technical || []).slice(0, 8),
       cvText,
       jobText: jd,
+      jobTitle: jobP.title || '',   // fix #53 : persisté dans l'historique
+      company: jobP.company || '',  // fix #53 : persisté dans l'historique
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

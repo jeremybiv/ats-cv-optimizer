@@ -238,8 +238,11 @@ export default function Home() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            jobTitle: '',
-            company: '',
+            // Fix #53 (05/09/2026) : jobTitle/company étaient envoyés VIDES en dur
+            // → l'historique affichait « CV sans titre ». On utilise désormais les
+            // valeurs extraites de l'offre par l'API optimize.
+            jobTitle: data.jobTitle || '',
+            company: data.company || '',
             templateUsed: strictMode ? 'strict' : 'visual',
             html: data.html,
             score: data.matchScore || null,
