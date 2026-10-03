@@ -180,7 +180,9 @@ export default function Home() {
   const handleOptimize = async () => {
     const hasCv = !!cvFile;
     const hasLinkedin = !!linkedinData || (showManualInput && linkedinManualText.trim().length > 20);
-    if (!hasCv && !hasLinkedin && !jobUrl && !jobText) return;
+    // Fix #55 : un CV source ET une offre sont tous deux requis (sinon le backend
+    // génèrerait un CV générique à base de placeholders).
+    if ((!hasCv && !hasLinkedin) || (!jobUrl && !jobText)) return;
     
     setLoading(true); setError(null); setQuotaExceeded(false); setResult(null); setStep(0);
     try {
@@ -335,6 +337,10 @@ export default function Home() {
     setError(null); setQuotaExceeded(false); setStep(0);
     setLinkedinUrl(''); setLinkedinData(null); setLinkedinManualText('');
     setShowManualInput(false); setLinkedinError(null); setOriginalCvText('');
+    // Fix #55 : vider aussi l'<input type="file"> du DOM. Sans ça, re-sélectionner
+    // le MÊME fichier après un reset ne redéclenche pas onChange (la valeur de
+    // l'input est identique) → aucun CV rattaché à la requête → CV générique.
+    if (fileRef.current) fileRef.current.value = '';
   };
 
   const handleShare = async () => {
@@ -889,7 +895,7 @@ ${result.html}
               Réinitialiser
             </Button>
             <Button variant="contained" size="large" onClick={handleOptimize}
-              disabled={loading || (!cvFile && !linkedinData && !(showManualInput && linkedinManualText.trim().length > 20) && !jobUrl && !jobText)}
+              disabled={loading || !((cvFile || linkedinData || (showManualInput && linkedinManualText.trim().length > 20)) && (jobUrl || jobText))}
               startIcon={loading ? <CircularProgress size={18} color="inherit" /> : <AutoAwesomeIcon />}
               sx={{ borderRadius: '28px', textTransform: 'none', px: 4, bgcolor: '#1a73e8', '&:hover': { bgcolor: '#1557b0' } }}>
               {loading ? 'Optimisation en cours...' : '🚀 Optimiser mon CV'}
