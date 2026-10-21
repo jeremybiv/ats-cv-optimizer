@@ -45,10 +45,29 @@ function despaceHeader(text) {
   // les points d'abord, puis on applique la détection espace-par-lettre.
   const dotsRemoved = text.replace(/\.\s*/g, '');
   const tokens = dotsRemoved.split(/\s+/).filter(Boolean);
-  if (tokens.length < 3) return text;
-  const shortCount = tokens.filter(t => t.length <= 2).length;
-  if (shortCount / tokens.length < 0.6) return text;
-  return tokens.join('');
+  if (tokens.length >= 3) {
+    const shortCount = tokens.filter(t => t.length <= 2).length;
+    if (shortCount / tokens.length >= 0.6) return tokens.join('');
+  }
+  // ── FIX 21/10/2026 (fuzzer 38/60 → voir skill) ────────────────────────────
+  // « F. . O. . R. . M. . A. . T. . I. . O. . N » : le `replace` précédent
+  // supprime CHAQUE « . » + espaces → tout est collé en UN token ("FORMATION").
+  // L'ancien garde-fou (tokens.length < 3 → return text) renvoyait alors le
+  // texte ORIGINAL avec ses points → l'en-tête n'était jamais reconnu
+  // (symptôme : 0 formation, expériences perdues). On repart du texte brut
+  // découpé sur points ET espaces pour valider qu'il s'agit bien de lettres
+  // isolées, et on ne recolle que si ça produit un mot alphabétique.
+  const rawTokens = text.split(/[\s.]+/).filter(Boolean);
+  if (rawTokens.length >= 3) {
+    // Retire un éventuel NUMÉRO DE SECTION en tête (« 1. », « 2) ») : sinon le
+    // recollement donne « 1EXPERIENCEPROFESSIONNELLE » et le garde-fou
+    // alphabétique ci-dessous refuse → en-tête numéroté jamais reconnu.
+    const words = rawTokens.filter(t => !/^\d{1,2}$/.test(t));
+    const shortRaw = words.filter(t => t.length <= 2).length;
+    const joined = words.join('');
+    if (shortRaw / Math.max(words.length, 1) >= 0.6 && /^[A-Za-zÀ-ÿ]{3,}$/.test(joined)) return joined;
+  }
+  return text;
 }
 
 // Word-boundary anchored so a real word/title doesn't false-match a header
@@ -104,7 +123,7 @@ const DATE_RANGE_RE = new RegExp(
   '(?:' +
     // "Month? Year (a|à|-|to) Month? (Year|présent...)" — e.g. "2019 - 2020",
     // "Janvier 2022 à mars 2023", "Mars 2018 à présent", "2018/2020" (slash).
-    '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:a|à|-|–|—|/|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|présent|actuel|aujourd|current|now)' +
+    '(?:\\b(?:' + MONTHS + ')\\b\\s*)?\\b(?:19|20)\\d{2}\\b\\s*(?:au|aux|jusqu\'?a|jusqu\'?à|a|à|-|–|—|/|to)\\s*(?:\\b(?:' + MONTHS + ')\\b\\s*)?(?:\\b(?:19|20)\\d{2}\\b|present|présent|actuel|aujourd|current|now)' +
     '|' +
     // "Month (a|à|-|to) Month Year" — French idiom sharing one trailing
     // year, e.g. "Juin à juillet 2021", "Avril à décembre 2022".
