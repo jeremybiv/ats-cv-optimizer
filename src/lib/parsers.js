@@ -571,6 +571,27 @@ function parseCVText(pdfText) {
         continue;
       }
       const degreeMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
+      // ── FIX 21/10/2026 ────────────────────────────────────────────────
+      // « 2012-2014 · Master Informatique · Université Lyon 1 » (dates en
+      // TÊTE, séparées par le POINT MÉDIAN). Symétrique de
+      // `dotSeparatedJobLine` côté expérience — sans cette branche le
+      // `degreeMatch` (qui ne connaît que | – —) échoue, le fallback
+      // `trimmed.match(/20\d{2}/)` avale TOUTE la ligne dans `dates`, et
+      // `degree`/`institution` restent vides → formation perdue et la
+      // suivante fusionne. Cas vécu sur un vrai PDF.
+      const dotEdu = trimmed.split(/\s*[·•]\s*/).filter(Boolean);
+      const dotSeparatedEdu = dotEdu.length >= 3 && hasDateRange(dotEdu[0]);
+      if (dotSeparatedEdu) {
+        if (!currentItem || currentItem.degree || currentItem.institution || currentItem.dates) {
+          currentItem = { degree: '', institution: '', dates: '', description: [] };
+          cv.education.push(currentItem);
+        }
+        currentItem.dates = dotEdu[0].trim();
+        currentItem.degree = dotEdu[1].trim();
+        currentItem.institution = dotEdu.slice(2).join(' · ').trim();
+        trackRaw(trimmed);
+        continue;
+      }
       // French CVs: "Diploma - Institution (year)" - detect with plain hyphen
       const hyphenEduMatch = trimmed.match(/^(.+?)\s+-\s+(.+?)\s*\((\d{4}[^)]*)\)\s*$/);
       const newEdu = (degreeMatch || hyphenEduMatch) && (!currentItem || currentItem.institution);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* Non-régression du parseur : 12 formats historiques doivent rester OK. */
-const { parseCVText } = require('/tmp/atsfix/src/lib/parsers.js');
+const { parseCVText } = require('../src/lib/parsers.js');
 
 const cas = [
   ['hyphen-years', `Marie Dupont\nmarie@email.com\n\nEXPERIENCE\nLead Dev - BanqueTech (2020-2024)\nArchitecture.\nSenior Dev - DataFlow (2018-2020)\nPython.\n\nFORMATION\nMaster - EPFL (2012-2014)`, { exp: 2, edu: 1 }],
