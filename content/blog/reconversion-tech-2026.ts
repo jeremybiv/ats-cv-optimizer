@@ -227,7 +227,7 @@ const article: Article = {
     },
     {
       type: 'p',
-      text: "La reconversion n'est pas un sprint de trois mois : les deux premières années, tu apprends plus vite que tu ne produis. Pour situer les salaires une fois le poste décroché, lis [négocier son salaire tech](/blog/negocier-salaire-tech). [Prospecho](/) te donne des offres réelles.",
+      text: "La reconversion n'est pas un sprint de trois mois : les deux premières années, tu apprends plus vite que tu ne produis. Pour situer les salaires une fois le poste décroché, lis [négocier son salaire tech](/blog/negocier-salaire-tech). [Prospecho](/) génère un CV aligné sur une offre réelle.",
     },
   ],
   faq: [

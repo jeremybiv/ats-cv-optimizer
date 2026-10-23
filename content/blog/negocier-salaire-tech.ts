@@ -186,7 +186,7 @@ const article: Article = {
     },
     {
       type: 'p',
-      text: "La meilleure position de négociation reste d'avoir une autre option : un processus en cours ailleurs change ton ton et ta capacité à dire non. Si tu débutes, lis d'abord [le parcours réaliste pour entrer dans la tech](/blog/reconversion-tech-2026) et prépare [l'entretien technique](/blog/entretien-technique-5-etapes). Pour arriver avec des chiffres à jour, [Prospecho](/) centralise les annonces et les fourchettes.",
+      text: "La meilleure position de négociation reste d'avoir une autre option : un processus en cours ailleurs change ton ton et ta capacité à dire non. Si tu débutes, lis d'abord [le parcours réaliste pour entrer dans la tech](/blog/reconversion-tech-2026) et prépare [l'entretien technique](/blog/entretien-technique-5-etapes). Pour arriver avec un CV aligné sur l'offre, [Prospecho](/) repositionne ton parcours sur les mots-clés du poste.",
     },
   ],
   faq: [

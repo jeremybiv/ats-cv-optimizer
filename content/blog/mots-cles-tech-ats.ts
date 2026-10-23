@@ -172,7 +172,7 @@ const article: Article = {
     },
     {
       type: 'p',
-      text: "Ce que tu peux faire sans mentir : reformuler. Si tu as écrit des requêtes SQL tous les jours pendant deux ans, « SQL » mérite une puce avec un volume et un cas d'usage. La preuve transforme un mot-clé en argument, et c'est ce que mesure [Prospecho](/) : la présence du terme, puis sa mise en situation.",
+      text: "Ce que tu peux faire sans mentir : reformuler. Si tu as écrit des requêtes SQL tous les jours pendant deux ans, « SQL » mérite une puce avec un volume et un cas d'usage. La preuve transforme un mot-clé en argument, et c'est ce que valorise un recruteur : la présence du terme, puis sa mise en situation.",
     },
 
     { type: 'h2', text: "L'erreur du bourrage de mots-clés", id: 'erreur-bourrage' },

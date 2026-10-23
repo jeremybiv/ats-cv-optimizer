@@ -179,7 +179,7 @@ const article: Article = {
     },
     {
       type: 'p',
-      text: "Une fois ces huit points en place, la suite se joue ailleurs : ton CV doit reprendre les mêmes projets avec les mêmes mots, sinon le recruteur ne fait pas le lien. La méthode est dans [structurer un CV de développeur](/blog/structure-cv-developpeur), et si tu n'as pas de diplôme, lis [les métiers tech accessibles sans diplôme](/blog/job-tech-sans-diplome). Ton portfolio servira ensuite de support à [l'entretien technique](/blog/entretien-technique-5-etapes). Pour voir comment ces signaux sont lus côté entreprise, [Prospecho](/) documente le processus.",
+      text: "Une fois ces huit points en place, la suite se joue ailleurs : ton CV doit reprendre les mêmes projets avec les mêmes mots, sinon le recruteur ne fait pas le lien. La méthode est dans [structurer un CV de développeur](/blog/structure-cv-developpeur), et si tu n'as pas de diplôme, lis [les métiers tech accessibles sans diplôme](/blog/job-tech-sans-diplome). Ton portfolio servira ensuite de support à [l'entretien technique](/blog/entretien-technique-5-etapes). Pour reprendre ces projets dans un CV lisible par un ATS, [Prospecho](/) aligne ton parcours sur l'offre.",
     },
   ],
   faq: [

@@ -68,7 +68,7 @@ const article: Article = {
     },
     {
       type: 'p',
-      text: "Deux nuances comptent : la forme et la pondération. Un terme mal orthographié, abrégé autrement ou noyé dans une image ne compte pas. Un terme cité dans le titre ou dans les compétences pèse plus qu'une mention perdue dans un paragraphe — d'où la règle des trois occurrences.",
+      text: "Deux nuances comptent : la forme et la présence. Un terme mal orthographié ou abrégé autrement ne compte pas : le moteur teste une correspondance de chaîne, pas une proximité sémantique. Chaque terme retrouvé pèse pareil, qu'il soit dans le titre ou dans un paragraphe — mais un recruteur qui cherche « Kubernetes » verra d'abord un titre et une section compétences explicites. D'où la règle des trois occurrences : une dans le titre, une dans les compétences, une dans une expérience.",
     },
     {
       type: 'p',
@@ -100,7 +100,7 @@ const article: Article = {
     { type: 'h2', text: 'Les 15 % de longueur', id: 'score-longueur' },
     {
       type: 'p',
-      text: "La longueur est comptée en mots, hors en-tête et hors coordonnées. Le barème est volontairement simple : un CV trop court n'a pas assez de matière, un CV trop long dilue les mots-clés.",
+      text: "La longueur est comptée en mots sur l'ensemble du texte du CV. Le barème est volontairement simple : un CV trop court n'a pas assez de matière, un CV trop long dilue les mots-clés.",
     },
     {
       type: 'table',
