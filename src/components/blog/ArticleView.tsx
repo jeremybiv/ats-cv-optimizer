@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Box, Button, Card, CardActionArea, Container, Divider, Typography } from '@mui/material';
 import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import type { Article, Block } from '../../blog/types';
+import type { Article, ArticleMeta, Block } from '../../blog/types';
 import { BRAND } from '../../theme';
 import ArticleBody from './ArticleBody';
 
@@ -20,7 +20,7 @@ export function formatDate(iso: string) {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-export default function ArticleView({ article, related }: { article: Article; related: Article[] }) {
+export default function ArticleView({ article, related }: { article: Article; related: ArticleMeta[] }) {
   const { meta, blocks, faq } = article;
   const h2s = blocks.filter((b) => b.type === 'h2') as Extract<Block, { type: 'h2' }>[];
 
@@ -222,13 +222,13 @@ export default function ArticleView({ article, related }: { article: Article; re
             </Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, 1fr)' }, gap: 2 }}>
               {related.map((a) => (
-                <Card key={a.meta.slug} sx={{ border: `1px solid ${BRAND.borderLight}`, borderRadius: '16px', bgcolor: '#fff' }}>
-                  <CardActionArea component={Link} href={`/blog/${a.meta.slug}`} sx={{ p: 2.2, height: '100%', display: 'block' }}>
+                <Card key={a.slug} sx={{ border: `1px solid ${BRAND.borderLight}`, borderRadius: '16px', bgcolor: '#fff' }}>
+                  <CardActionArea component={Link} href={`/blog/${a.slug}`} sx={{ p: 2.2, height: '100%', display: 'block' }}>
                     <Typography sx={{ color: BRAND.primary, fontSize: '0.72rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.8, mb: 0.8 }}>
-                      {a.meta.category}
+                      {a.category}
                     </Typography>
                     <Typography sx={{ color: BRAND.text, fontWeight: 500, fontSize: '0.95rem', lineHeight: 1.4 }}>
-                      {a.meta.title}
+                      {a.title}
                     </Typography>
                   </CardActionArea>
                 </Card>

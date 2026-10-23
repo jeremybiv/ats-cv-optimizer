@@ -64,7 +64,7 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ArticleView article={article} related={getRelated(article)} />
+      <ArticleView article={article} related={getRelated(article).map((a) => a.meta)} />
     </>
   );
 }
