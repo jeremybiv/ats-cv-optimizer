@@ -1,0 +1,74 @@
+[
+ {
+  "vp": "mobile-390x844",
+  "path": "/",
+  "code": 200,
+  "overflow": false,
+  "sw": 390,
+  "cw": 390,
+  "title": "Prospecho - CV ATS-proof pour profils tech | Suisse & International",
+  "h1": "Le CV qui passe les ATS des plus grands groupes te",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-mobile-390x844-home.png"
+ },
+ {
+  "vp": "mobile-390x844",
+  "path": "/contact",
+  "code": 200,
+  "overflow": false,
+  "sw": 390,
+  "cw": 390,
+  "title": "Contact | Prospecho",
+  "h1": "Contacte-nous",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-mobile-390x844-contact.png"
+ },
+ {
+  "vp": "mobile-390x844",
+  "path": "/login",
+  "code": 200,
+  "overflow": false,
+  "sw": 390,
+  "cw": 390,
+  "title": "",
+  "h1": "",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-mobile-390x844-login.png"
+ },
+ {
+  "vp": "desktop-1440x900",
+  "path": "/",
+  "code": 200,
+  "overflow": false,
+  "sw": 1440,
+  "cw": 1440,
+  "title": "Prospecho - CV ATS-proof pour profils tech | Suisse & International",
+  "h1": "Le CV qui passe les ATS des plus grands groupes te",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-desktop-1440x900-home.png"
+ },
+ {
+  "vp": "desktop-1440x900",
+  "path": "/contact",
+  "code": 200,
+  "overflow": false,
+  "sw": 1440,
+  "cw": 1440,
+  "title": "Contact | Prospecho",
+  "h1": "Contacte-nous",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-desktop-1440x900-contact.png"
+ },
+ {
+  "vp": "desktop-1440x900",
+  "path": "/login",
+  "code": 200,
+  "overflow": false,
+  "sw": 1440,
+  "cw": 1440,
+  "title": "",
+  "h1": "",
+  "errs": [],
+  "shot": "/home/jeremy/prospecho-work/cycle6/c/screens/pr70-desktop-1440x900-login.png"
+ }
+]
