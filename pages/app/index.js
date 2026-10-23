@@ -653,16 +653,31 @@ ${result.html}
             </Typography>
             {session && (
               <Button size="small" variant="text" onClick={handleOpenHistory} startIcon={<HistoryIcon />}
+                aria-label="Historique de mes CV"
                 sx={{ color: '#5f6368', textTransform: 'none', fontSize: '0.8rem' }}>
                 Historique
               </Button>
             )}
-            <IconButton size="small" onClick={(e) => setAnchorEl(e.currentTarget)}>
+            <IconButton
+              id="account-menu-button"
+              size="small"
+              onClick={(e) => setAnchorEl(e.currentTarget)}
+              aria-label="Ouvrir le menu du compte"
+              aria-haspopup="true"
+              aria-expanded={Boolean(anchorEl)}
+              aria-controls={anchorEl ? 'account-menu' : undefined}
+            >
               <Avatar sx={{ width: 28, height: 28, bgcolor: '#1a73e8', fontSize: '0.8rem' }}>
                 {session?.user?.email?.[0]?.toUpperCase() || 'U'}
               </Avatar>
             </IconButton>
-            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+            <Menu
+              id="account-menu"
+              anchorEl={anchorEl}
+              open={Boolean(anchorEl)}
+              onClose={() => setAnchorEl(null)}
+              MenuListProps={{ 'aria-labelledby': 'account-menu-button' }}
+            >
               <MenuItem onClick={() => { setAnchorEl(null); signOut(); }}>
                 <LogoutIcon sx={{ mr: 1, fontSize: 18 }} /> Se déconnecter
               </MenuItem>

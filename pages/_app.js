@@ -1,7 +1,8 @@
 import * as React from 'react';
 import { SessionProvider } from 'next-auth/react';
-import { ThemeProvider, CssBaseline } from '@mui/material';
+import { ThemeProvider, CssBaseline, Box } from '@mui/material';
 import Head from 'next/head';
+import SkipLink from '../src/components/SkipLink';
 import '@fontsource/roboto/300.css';
 import '@fontsource/roboto/400.css';
 import '@fontsource/roboto/500.css';
@@ -28,7 +29,21 @@ export default function App({ Component, pageProps: { session, ...pageProps } })
           <meta name="twitter:image" content={OG_IMAGE} key="twitter:image" />
           <meta name="twitter:image:alt" content={OG_IMAGE_ALT} key="twitter:image:alt" />
         </Head>
-        <Component {...pageProps} />
+        {/* Lien d'évitement global : premier élément focusable de chaque page */}
+        <SkipLink />
+        {/*
+          Repère principal unique du document (aucune page ne déclare déjà <main>).
+          tabIndex={-1} permet au skip-link de déplacer réellement le focus sur #main-content
+          (nécessaire sous Safari/Firefox), outline:none évite un contour parasite.
+        */}
+        <Box
+          component="main"
+          id="main-content"
+          tabIndex={-1}
+          sx={{ outline: 'none' }}
+        >
+          <Component {...pageProps} />
+        </Box>
       </ThemeProvider>
     </SessionProvider>
   );
