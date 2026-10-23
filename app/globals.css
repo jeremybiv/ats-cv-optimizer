@@ -1,0 +1,21 @@
+:root {
+  --blog-primary: #1a73e8;
+  --blog-bg: #f8f9fa;
+  --blog-text: #202124;
+  --blog-muted: #5f6368;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--blog-bg);
+  color: var(--blog-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Les pages du blog sont rendues dans un arbre App Router distinct de
+   _app.js : on garde ici uniquement le reset de base, le thème MUI gère le
+   reste (les composants sont client-side et reçoivent le ThemeProvider). */
