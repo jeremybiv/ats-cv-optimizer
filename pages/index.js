@@ -50,32 +50,32 @@ const techProfiles = [
 // this page should never surface an answer that isn't actually shown here).
 const faqItems = [
   {
-    q: "Qu est-ce qu un CV compatible ATS ?",
-    a: "Un CV compatible ATS (Applicant Tracking System) est un CV formaté pour etre lu correctement par les logiciels de recrutement comme Workday, Taleo, SuccessFactors ou iCIMS. Il doit utiliser une structure lineaire, des polices standard, des sections aux intitulés classiques et integrer les mots-cles de l offre d emploi.",
+    q: "Qu'est-ce qu'un CV compatible ATS ?",
+    a: "Un CV compatible ATS (Applicant Tracking System) est un CV formaté pour être lu correctement par les logiciels de recrutement comme Workday, Taleo, SuccessFactors ou iCIMS. Il doit utiliser une structure linéaire, des polices standard, des sections aux intitulés classiques et intégrer les mots-clés de l'offre d'emploi.",
   },
   {
     q: "Comment optimiser mon CV pour les ATS gratuitement ?",
-    a: "Prospecho est un outil gratuit qui analyse ton CV, extrait les mots-cles de l offre d emploi et genere un CV HTML optimise. Tu peux l utiliser jusqu a 2 fois par mois gratuitement, sans limite au forfait Pro. Importe ton CV ou ton profil LinkedIn, colle l offre, et obtiens un CV optimise en quelques secondes.",
+    a: "Prospecho est un outil gratuit qui analyse ton CV, extrait les mots-clés de l'offre d'emploi et génère un CV HTML optimisé. Tu peux l'utiliser jusqu'à 2 fois par mois gratuitement, sans limite au forfait Pro. Importe ton CV ou ton profil LinkedIn, colle l'offre, et obtiens un CV optimisé en quelques secondes.",
   },
   {
     q: "Prospecho convient-il pour postuler en Suisse ?",
-    a: "Oui. Les grands groupes actifs en Suisse (banques, assurances, pharma, industrie, scale-ups tech a Geneve, Lausanne ou Zurich) utilisent des ATS stricts comme Workday, SuccessFactors ou Taleo et des processus RH exigeants. Prospecho structure le CV avec des intitulés de section standards et les mots-cles de l offre pour passer ces filtres.",
+    a: "Oui. Les grands groupes actifs en Suisse (banques, assurances, pharma, industrie, scale-ups tech à Genève, Lausanne ou Zurich) utilisent des ATS stricts comme Workday, SuccessFactors ou Taleo et des processus RH exigeants. Prospecho structure le CV avec des intitulés de section standards et les mots-clés de l'offre pour passer ces filtres.",
   },
   {
     q: "Prospecho est-il adapté aux profils tech (dev, data, cybersécurité) ?",
-    a: "Oui, c est son usage principal. L outil extrait les mots-cles techniques de l offre (langages, frameworks, outils cloud, méthodologies) et les repositionne dans le CV de maniere honnête, sans inventer de compétences que le candidat n a pas.",
+    a: "Oui, c'est son usage principal. L'outil extrait les mots-clés techniques de l'offre (langages, frameworks, outils cloud, méthodologies) et les repositionne dans le CV de manière honnête, sans inventer de compétences que le candidat n'a pas.",
   },
   {
     q: "Puis-je utiliser Prospecho pour une candidature freelance ou une mission courte ?",
-    a: "Oui. Le CV genere convient aussi bien a une candidature CDI qu a une mission freelance ou un contrat de courte durée : le template Professionnel met en avant la stack et les réalisations, le template ATS Strict maximise la compatibilité avec les plateformes de mise en relation freelance qui utilisent aussi des ATS.",
+    a: "Oui. Le CV généré convient aussi bien à une candidature CDI qu'à une mission freelance ou un contrat de courte durée : le template Professionnel met en avant la stack et les réalisations, le template ATS Strict maximise la compatibilité avec les plateformes de mise en relation freelance qui utilisent aussi des ATS.",
   },
   {
     q: "Quels sont les meilleurs formats de CV pour les ATS ?",
-    a: "Les meilleurs formats sont le HTML (recommande) et le DOCX. Le PDF est acceptable si genere depuis du texte. Evitez les images, les tableaux complexes et les colonnes multiples qui perturbent la lecture par les ATS.",
+    a: "Les meilleurs formats sont le HTML (recommandé) et le DOCX. Le PDF est acceptable si généré depuis du texte. Évitez les images, les tableaux complexes et les colonnes multiples qui perturbent la lecture par les ATS.",
   },
   {
-    q: "Quelle difference entre un template cv Professionnel et ATS Strict ?",
-    a: "Le template Professionnel offre un design soigné deux-colonnes ideal pour les recruteurs humains. Le template ATS Strict est une version une-colonne sans fioritures, optimisee pour les ATS les plus stricts comme Workday et Taleo.",
+    q: "Quelle différence entre un template CV Professionnel et ATS Strict ?",
+    a: "Le template Professionnel offre un design soigné deux-colonnes idéal pour les recruteurs humains. Le template ATS Strict est une version une-colonne sans fioritures, optimisée pour les ATS les plus stricts comme Workday et Taleo.",
   },
 ];
 
@@ -117,8 +117,8 @@ export default function LandingPage() {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
       <Head>
         <title>Prospecho - CV ATS-proof pour profils tech | Suisse & International</title>
-        <meta name="description" content="Genere un CV ATS-proof pense pour les profils tech (dev, data, product, cloud, cybersecurite). Optimise pour les ATS des grands groupes (Workday, Taleo, SuccessFactors) et adapte au marche suisse. Gratuit, en quelques secondes." />
-        <meta name="keywords" content="CV ATS, CV tech, CV developpeur, CV ATS Suisse, CV Geneve, CV Lausanne, CV Zurich, CV freelance tech, optimisation CV, ATS friendly, CV Workday, CV Taleo, CV SuccessFactors, generateur CV, CV optimise ATS" />
+        <meta name="description" content="Génère un CV ATS-proof pour les profils tech (dev, data, product, cloud) : optimisé pour Workday, Taleo, SuccessFactors et adapté au marché suisse. Gratuit." />
+        <meta name="keywords" content="CV ATS, CV tech, CV développeur, CV ATS Suisse, CV Genève, CV Lausanne, CV Zurich, CV freelance tech, optimisation CV, ATS friendly, CV Workday, CV Taleo, CV SuccessFactors, générateur CV, CV optimisé ATS" />
         <meta name="robots" content="index, follow" />
         <meta name="googlebot" content="index, follow, max-snippet:-1, max-image-preview:large" />
         {/* GEO (generative engine optimization): explicitly welcome the major
@@ -129,13 +129,13 @@ export default function LandingPage() {
         <meta name="geo.placename" content="Genève, Lausanne, Zurich, Suisse" />
         <link rel="canonical" href="https://prospecho.fr" />
         <meta property="og:title" content="Prospecho - CV ATS-proof pour profils tech" />
-        <meta property="og:description" content="Genere un CV ATS-proof pense pour les profils tech, optimise pour les ATS des grands groupes et adapte au marche suisse." />
+        <meta property="og:description" content="Génère un CV ATS-proof pensé pour les profils tech, optimisé pour les ATS des grands groupes et adapté au marché suisse." />
         <meta property="og:type" content="website" />
         <meta property="og:url" content="https://prospecho.fr" />
         <meta property="og:locale" content="fr_CH" />
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content="Prospecho - CV ATS-proof pour profils tech" />
-        <meta name="twitter:description" content="Le CV ATS-proof pense pour les profils tech, adapte au marche suisse. Gratuit, en quelques secondes." />
+        <meta name="twitter:description" content="Le CV ATS-proof pensé pour les profils tech, adapté au marché suisse. Gratuit, en quelques secondes." />
       </Head>
       {/* Header */}
       <Box sx={{ bgcolor: 'background.paper', borderBottom: 1, borderColor: 'divider', py: 1.5, px: { xs: 2, md: 4 } }}>
@@ -419,9 +419,9 @@ export default function LandingPage() {
             "name": "Comment optimiser son CV pour les ATS",
             "step": [
               {"@type": "HowToStep", "position": 1, "name": "Importe ton CV", "text": "Upload ton CV au format PDF ou importe ton profil LinkedIn."},
-              {"@type": "HowToStep", "position": 2, "name": "Colle l offre d emploi", "text": "Copie le lien ou le texte de l offre a laquelle tu postules."},
-              {"@type": "HowToStep", "position": 3, "name": "Choisis ton template", "text": "Selectionne Professionnel (pour humain) ou ATS Strict (pour les ATS)."},
-              {"@type": "HowToStep", "position": 4, "name": "Optimise et telecharge", "text": "Obtiens ton CV optimise avec score ATS, exporte en PDF ou Word, et partage-le avec les recruteurs."}
+              {"@type": "HowToStep", "position": 2, "name": "Colle l'offre d'emploi", "text": "Copie le lien ou le texte de l'offre à laquelle tu postules."},
+              {"@type": "HowToStep", "position": 3, "name": "Choisis ton template", "text": "Sélectionne Professionnel (pour humain) ou ATS Strict (pour les ATS)."},
+              {"@type": "HowToStep", "position": 4, "name": "Optimise et télécharge", "text": "Obtiens ton CV optimisé avec score ATS, exporte en PDF ou Word, et partage-le avec les recruteurs."}
             ]
           })
         }}
