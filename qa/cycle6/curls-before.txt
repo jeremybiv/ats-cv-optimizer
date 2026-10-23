@@ -1,0 +1,16 @@
+=== before — POST sans cookie de session ===
+POST /api/cover-letter (body vide {})          HTTP 400  {"error":"cvText et jobText sont requis"}
+POST /api/interview-prep (body vide {})        HTTP 400  {"error":"cvText et jobText sont requis"}
+POST /api/linkedin-fetch (body vide {})        HTTP 400  {"error":"URL LinkedIn invalide"}
+POST /api/cover-letter                         HTTP 500  {"error":"Request failed with status code 401"}
+POST /api/interview-prep                       HTTP 500  {"error":"Erreur lors de la génération des questions","details":"Request failed with status code 401"}
+POST /api/linkedin-fetch                       HTTP 200  {"name":"prospecho-inexistant","title":"","summary":"","skills":[],"experience":[],"source":"fallback","username":"prospecho-inexistant"}
+POST /api/newsletter (email invalide)          HTTP 400  {"ok":false,"error":"Adresse e-mail invalide."}
+POST /api/newsletter (email valide, BREVO absent) HTTP 500  {"ok":false,"error":"Configuration serveur manquante."}
+
+=== before — cookie de session invalide ===
+POST /api/cover-letter + cookie bidon          HTTP 500  {"error":"Request failed with status code 401"}
+POST /api/interview-prep + cookie bidon        HTTP 500  {"error":"Erreur lors de la génération des questions","details":"Request failed with status code 401"}
+
+=== before — middleware /api/optimize (anonyme) ===
+POST /api/optimize anonyme                  HTTP 307 (redirect: http://localhost:3311/api/auth/error?error=Configuration)

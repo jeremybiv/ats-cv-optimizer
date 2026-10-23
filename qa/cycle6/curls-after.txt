@@ -1,0 +1,16 @@
+=== after — POST sans cookie de session ===
+POST /api/cover-letter (body vide {})          HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/interview-prep (body vide {})        HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/linkedin-fetch (body vide {})        HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/cover-letter                         HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/interview-prep                       HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/linkedin-fetch                       HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/newsletter (email invalide)          HTTP 400  {"ok":false,"error":"Adresse e-mail invalide."}
+POST /api/newsletter (email valide, BREVO absent) HTTP 500  {"ok":false,"error":"Configuration serveur manquante."}
+
+=== after — cookie de session invalide ===
+POST /api/cover-letter + cookie bidon          HTTP 401  {"ok":false,"error":"Authentification requise."}
+POST /api/interview-prep + cookie bidon        HTTP 401  {"ok":false,"error":"Authentification requise."}
+
+=== after — middleware /api/optimize (anonyme) ===
+POST /api/optimize anonyme                  HTTP 307 (redirect: http://localhost:3311/api/auth/error?error=Configuration)
