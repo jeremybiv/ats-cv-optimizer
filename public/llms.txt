@@ -37,6 +37,21 @@ assurances, pharma, scale-ups tech) en Suisse (Genève, Lausanne, Zurich) et en 
 - [Conditions générales d'utilisation et de vente](https://prospecho.fr/cgu)
 - [Politique de confidentialité](https://prospecho.fr/confidentialite)
 
+## Blog — guides pour trouver un job tech
+
+Le blog publie des guides pratiques en français sur le CV, les ATS, le recrutement tech, la reconversion et les entretiens. Chaque article expose un JSON-LD structuré (Article, FAQPage, BreadcrumbList) et une réponse directe en tête de page, pour être lisible et citable par les moteurs de réponse.
+
+- [Comment optimiser son CV pour les ATS en 2026](https://prospecho.fr/blog/optimiser-cv-ats-2026) — parsing, sept contrôles, format PDF ou DOCX, structure des sections et checklist en 12 points.
+- [Les mots-clés tech qui font vraiment passer les ATS](https://prospecho.fr/blog/mots-cles-tech-ats) — mots-clés par métier tech, matching exact ou sémantique et synonymes à doubler.
+- [Structure de CV développeur qui passe les robots](https://prospecho.fr/blog/structure-cv-developpeur) — ordre des sections, dates en MM/AAAA, puces XYZ et trois bullets réécrits avant/après.
+- [Score ATS : comment il est calculé et comment l’améliorer](https://prospecho.fr/blog/score-ats-comment-calcule) — barème détaillé (mots-clés, structure, longueur, densité), exemple chiffré et leviers de progression.
+- [Reconversion dans la tech : le parcours réaliste en 2026](https://prospecho.fr/blog/reconversion-tech-2026) — bootcamp, alternance ou autodidacte : durées, coûts, plan 90 jours et pièges à éviter.
+- [Négocier son salaire tech : fourchettes réelles par région et niveau](https://prospecho.fr/blog/negocier-salaire-tech) — salaires bruts France et Suisse par ville, TJM freelance et méthode de négociation en 5 étapes.
+- [Portfolio GitHub qui convainc un recruteur](https://prospecho.fr/blog/portfolio-github-recruteur) — ce qui est regardé en 60 secondes, les 3 projets qui comptent et les erreurs qui tuent la crédibilité.
+- [Lettre de motivation tech : ce qui marche encore](https://prospecho.fr/blog/lettre-motivation-tech) — quand la lettre compte, la structure en 4 paragraphes et les formules à supprimer.
+- [Job tech sans diplôme : le vrai chemin](https://prospecho.fr/blog/job-tech-sans-diplome) — alternance, bootcamp ou autodidacte : coûts, durées, métiers accessibles et plan sur 6 mois.
+- [Réussir l'entretien technique : la méthode en 5 étapes](https://prospecho.fr/blog/entretien-technique-5-etapes) — décoder l'annonce, récits STAR, live coding, system design et suivi écrit.
+
 ## Contact
 
 Jeremy.bivaud@gmail.com

@@ -1,3 +1,5 @@
+'use client';
+
 import Link from 'next/link';
 import { Box, Container, Typography } from '@mui/material';
 
@@ -17,6 +19,7 @@ export default function SiteFooter() {
           Prospecho · Propulsé par Prospimmo
         </Typography>
         <Box sx={{ display: 'flex', gap: 2.5, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/blog" style={linkStyle}>Blog</Link>
           <Link href="/contact" style={linkStyle}>Contact</Link>
           <Link href="/mentions-legales" style={linkStyle}>Mentions légales</Link>
           <Link href="/cgu" style={linkStyle}>CGU / CGV</Link>
