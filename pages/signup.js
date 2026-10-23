@@ -3,6 +3,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Container, Box, Typography, TextField, Button, Paper, Alert, Checkbox, FormControlLabel } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { safeRedirect } from '../src/lib/safeRedirect';
 
 export default function Signup() {
   const [name, setName] = useState('');
@@ -13,6 +14,7 @@ export default function Signup() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const callbackUrl = safeRedirect(router.query.callbackUrl);
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
@@ -33,7 +35,10 @@ export default function Signup() {
           body: JSON.stringify({ email }),
         }).catch(() => {});
       }
-      setTimeout(() => router.push('/login'), 1500);
+      // Le compte est créé mais la session n'est pas ouverte : on passe par
+      // /login en propageant le callbackUrl pour revenir ensuite sur la page
+      // demandée (au lieu de renvoyer l'utilisateur sur l'accueil).
+      setTimeout(() => router.push(`/login?callbackUrl=${encodeURIComponent(callbackUrl)}`), 1500);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -80,7 +85,7 @@ export default function Signup() {
           <Box sx={{ textAlign: 'center', mt: 2 }}>
             <Typography variant="body2" sx={{ color: '#5f6368' }}>
               Déjà un compte ?{' '}
-              <Link href="/login" style={{ color: '#1a73e8', fontWeight: 500, textDecoration: 'none' }}>
+              <Link href={{ pathname: '/login', query: { callbackUrl } }} style={{ color: '#1a73e8', fontWeight: 500, textDecoration: 'none' }}>
                 Se connecter
               </Link>
             </Typography>

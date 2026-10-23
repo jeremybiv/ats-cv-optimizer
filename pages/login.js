@@ -4,6 +4,7 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import { Container, Box, Typography, TextField, Button, Paper, Alert } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import { safeRedirect } from '../src/lib/safeRedirect';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,11 +12,12 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const callbackUrl = safeRedirect(router.query.callbackUrl);
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true); setError('');
     const res = await signIn('credentials', { email, password, redirect: false });
-    if (res?.ok) router.push('/');
+    if (res?.ok) router.push(callbackUrl);
     else setError('Email ou mot de passe incorrect.');
     setLoading(false);
   };
@@ -43,7 +45,7 @@ export default function Login() {
           <Box sx={{ textAlign: 'center', mt: 2 }}>
             <Typography variant="body2" sx={{ color: '#5f6368' }}>
               Pas encore de compte ?{' '}
-              <Link href="/signup" style={{ color: '#1a73e8', fontWeight: 500, textDecoration: 'none' }}>
+              <Link href={{ pathname: '/signup', query: { callbackUrl } }} style={{ color: '#1a73e8', fontWeight: 500, textDecoration: 'none' }}>
                 Créer un compte
               </Link>
             </Typography>
