@@ -368,6 +368,24 @@ function parseCVText(pdfText) {
       const emailMatch = trimmed.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z]+)/);
       if (emailMatch && !cv.email) {
         cv.email = emailMatch[1];
+        // ── FIX 23/10/2026 ────────────────────────────────────────────────
+        // Le nom est très souvent sur la MÊME ligne que l'email dans les CV
+        // LaTeX/anglais : « Sourabh Bajaj Email: sourabh@exemple.com ».
+        // L'ancien `continue` immédiat laissait cv.name vide → le CV généré
+        // affichait « Candidat » (bug B1 du CHAOS du 23/10, bloquant : c'est
+        // le premier élément vu par le recruteur).
+        if (!cv.name) {
+          const avantEmail = trimmed
+            .slice(0, emailMatch.index)
+            .replace(/\b(e-?mail|mail|courriel)\s*:?\s*$/i, '')
+            .trim();
+          // Un nom plausible : 2-50 car., pas de chiffre, pas de « @ », 2 mots max
+          if (avantEmail.length >= 2 && avantEmail.length <= 50
+              && !/\d|@|:/.test(avantEmail)
+              && avantEmail.split(/\s+/).length <= 4) {
+            cv.name = avantEmail;
+          }
+        }
         trackRaw(trimmed);
         continue;
       }
@@ -492,6 +510,24 @@ function parseCVText(pdfText) {
       // A "Company | Title" line always starts a new job entry - a CV section
       // usually lists several jobs under one "Experience" header, so without
       // this a second job would get folded into the first one's description.
+      // ── FIX 23/10/2026 (bug B4 du CHAOS) ──────────────────────────────
+      // « Software Engineer Oct 2016 – Present » : le tiret appartient à la
+      // PLAGE DE DATES, pas à un séparateur titre/entreprise. Sans ce
+      // garde-fou, companyMatch produisait company="Software Engineer Oct
+      // 2016" et title="Present" → dates/employeurs décalés sur tout le CV.
+      const dateTailMatch = trimmed.match(
+        /^(.*?)\s+((?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+)?(?:19|20)\d{2}\s*[-\u2013\u2014]\s*(?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+)?(?:(?:19|20)\d{2}|present|current|aujourd'hui|présent|actuel))\s*$/i
+      );
+      if (dateTailMatch && dateTailMatch[1].trim().length >= 3) {
+        if (!currentItem || (currentItem.title && currentItem.company)) {
+          currentItem = { title: '', company: '', dates: '', description: [] };
+          cv.experience.push(currentItem);
+        }
+        currentItem.title = currentItem.title || dateTailMatch[1].trim();
+        currentItem.dates = dateTailMatch[2].trim();
+        trackRaw(trimmed);
+        continue;
+      }
       const companyMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
       // French CVs often use "Title - Company (year)" with a plain hyphen -
       // detect those too (hyphen must have spaces + end with a year in parens,
