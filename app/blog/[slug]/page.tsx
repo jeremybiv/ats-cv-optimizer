@@ -19,7 +19,7 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   const path = `/blog/${meta.slug}`;
 
   return {
-    title: meta.title,
+    title: { absolute: meta.title },
     description: meta.description,
     keywords: meta.keywords,
     alternates: { canonical: path },
