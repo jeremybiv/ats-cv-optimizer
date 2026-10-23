@@ -570,6 +570,21 @@ function parseCVText(pdfText) {
         trackRaw(trimmed);
         continue;
       }
+      // ── FIX 23/10/2026 ────────────────────────────────────────────────
+      // Une ligne qui n'est QU'UNE plage de dates (« 2017 – 2019 ») complète
+      // l'entrée courante ; elle ne doit PAS créer un nouvel item.
+      // Sans ce garde-fou, `degreeMatch` (qui accepte « – » comme séparateur)
+      // la prenait pour « diplôme – école » → institution="2017",
+      // degree="2019", et la VRAIE formation suivante était décalée/perdue.
+      // Mesuré sur 20 CV : 2 formations sur 25 perdues avant ce correctif.
+      const onlyDates = trimmed.match(
+        /^(\d{4})\s*[-\u2013\u2014/]\s*(\d{4}|aujourd'hui|present|présent|en cours)$/i
+      );
+      if (onlyDates) {
+        if (currentItem) currentItem.dates = trimmed;
+        trackRaw(trimmed);
+        continue;
+      }
       const degreeMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
       // ── FIX 21/10/2026 ────────────────────────────────────────────────
       // « 2012-2014 · Master Informatique · Université Lyon 1 » (dates en
@@ -604,8 +619,24 @@ function parseCVText(pdfText) {
         cv.education.push(currentItem);
       }
       if (degreeMatch) {
-        currentItem.institution = degreeMatch[1].trim();
-        currentItem.degree = degreeMatch[2].trim();
+        // ── FIX 23/10/2026 ──────────────────────────────────────────────
+        // Les groupes étaient INVERSÉS : le diplôme partait dans `institution`
+        // et l'école dans `degree`. Vécu sur « Diplôme d'ingénieur — EPITECH »
+        // → institution="Diplôme d'ingénieur", degree="EPITECH".
+        // Heuristique : le côté qui contient un mot-clé de diplôme est le
+        // diplôme ; sinon on garde l'ordre du document (diplôme en premier).
+        const DIPLOME_RE = /\b(master|licence|bachelor|doctorat|dipl[oô]me|dut|bts|cap|bac|ing[eé]nieur|ing[eé]nior|mba|dea|dess|dea|deug|classe pr[eé]paratoire|phd|msc|bsc)\b/i;
+        const g1 = degreeMatch[1].trim();
+        const g2 = degreeMatch[2].trim();
+        const g1Dip = DIPLOME_RE.test(g1);
+        const g2Dip = DIPLOME_RE.test(g2);
+        if (g2Dip && !g1Dip) {
+          currentItem.degree = g2;
+          currentItem.institution = g1;
+        } else {
+          currentItem.degree = g1;
+          currentItem.institution = g2;
+        }
       } else if (hyphenEduMatch) {
         currentItem.degree = hyphenEduMatch[1].trim();
         currentItem.institution = hyphenEduMatch[2].trim();
