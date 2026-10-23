@@ -32,7 +32,7 @@
  *   restructure, unicode-trie, png-js, brotli, dfa, @swc — les dépendances de
  *   pdfkit). L'env dédié survit au `rm -rf` du clone de travail.
  */
-const { parseTextFromBase64, parseCVText } = require('./src/lib/parsers.js');
+const { parseTextFromBase64, parseCVText } = require('../src/lib/parsers.js');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const os = require('os');
