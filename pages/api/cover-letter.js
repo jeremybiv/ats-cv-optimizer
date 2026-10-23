@@ -1,8 +1,17 @@
 import axios from 'axios';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../src/lib/auth';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST only' });
+  }
+  // Cette route consomme la clé DeepSeek : jamais joignable sans session.
+  // La garde est dans le handler (et non dans middleware.js) car le middleware
+  // répond par une redirection 307, inadaptée à un endpoint JSON.
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    return res.status(401).json({ ok: false, error: 'Authentification requise.' });
   }
   try {
     const { cvText, jobText } = req.body;

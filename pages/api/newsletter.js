@@ -2,8 +2,13 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
   }
+  // Route volontairement publique (formulaire home/footer) : pas de session ici.
+  // Seule garde : refuser un payload démesuré. Le rate-limit par IP suivra.
+  if (JSON.stringify(req.body || {}).length > 2048) {
+    return res.status(413).json({ ok: false, error: 'Requête trop volumineuse.' });
+  }
   const { email } = req.body || {};
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (typeof email !== 'string' || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return res.status(400).json({ ok: false, error: 'Adresse e-mail invalide.' });
   }
   const apiKey = process.env.BREVO_API_KEY;

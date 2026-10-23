@@ -1,9 +1,18 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '../../src/lib/auth';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'POST only' });
+  }
+
+  // Le scraping LinkedIn est proxifié par nos serveurs : réservé aux sessions
+  // authentifiées pour éviter un proxy ouvert.
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user) {
+    return res.status(401).json({ ok: false, error: 'Authentification requise.' });
   }
 
   try {
