@@ -61,9 +61,9 @@ export default function Signup() {
             <form onSubmit={handleSubmit}>
               <TextField fullWidth size="small" label="Nom (optionnel)" value={name}
                 onChange={(e) => setName(e.target.value)} sx={{ mb: 2 }} />
-              <TextField fullWidth size="small" label="Email" type="email" value={email}
+              <TextField fullWidth size="small" label="Email" type="email" autoComplete="email" value={email}
                 onChange={(e) => setEmail(e.target.value)} sx={{ mb: 2 }} required />
-              <TextField fullWidth size="small" label="Mot de passe (6+ caractères)" type="password" value={password}
+              <TextField fullWidth size="small" label="Mot de passe (6+ caractères)" type="password" autoComplete="new-password" value={password}
                 onChange={(e) => setPassword(e.target.value)} sx={{ mb: 2 }} required />
               <FormControlLabel
                 control={<Checkbox checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} />}

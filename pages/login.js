@@ -32,9 +32,9 @@ export default function Login() {
             <Typography variant="body2" sx={{ color: '#5f6368' }}>Connectez-vous à votre compte</Typography>
           </Box>
           <form onSubmit={handleSubmit}>
-            <TextField fullWidth size="small" label="Email" type="email" value={email}
+            <TextField fullWidth size="small" label="Email" type="email" autoComplete="email" value={email}
               onChange={(e) => setEmail(e.target.value)} sx={{ mb: 2 }} required />
-            <TextField fullWidth size="small" label="Mot de passe" type="password" value={password}
+            <TextField fullWidth size="small" label="Mot de passe" type="password" autoComplete="current-password" value={password}
               onChange={(e) => setPassword(e.target.value)} sx={{ mb: 2 }} required />
             {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
             <Button fullWidth variant="contained" type="submit" disabled={loading}
