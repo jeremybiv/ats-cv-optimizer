@@ -140,6 +140,110 @@ function hasDateRange(text) {
   return DATE_RANGE_RE.test(stripAccents(text || ''));
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// CV LaTeX / deux colonnes — issue #88 (24/10/2026)
+// ═══════════════════════════════════════════════════════════════════════════
+// `pdftotext -layout` restitue la MISE EN PAGE : les colonnes sont séparées
+// par de longues suites d'espaces (« Software Engineer      Oct 2016 –
+// Present »), et les CV LaTeX utilisent deux niveaux de puces :
+//   « • »  ligne « Société / établissement      Ville » → en-tête d'entrée
+//   « ◦ »  ligne de description (projet, mission, cours)
+// Sans les distinguer, « ◦ Research Assistant – Machine Learning: Research
+// on machine learning… » matche `companyMatch` (le tiret vient du libellé du
+// projet, pas d'un séparateur titre/entreprise !) et fabrique une expérience
+// { title: "Machine Learning: …", company: "◦ Research Assistant" } — titre
+// et entreprise inversés, symptôme exact de l'issue.
+const MAIN_BULLET_RE = /^[•·*]\s+/; // puce de niveau 1
+const SUB_BULLET_RE = /^[◦▪‣▸►]\s+/; // puce de niveau 2 = description
+
+// Découpe « colonne gauche   colonne droite » sur une GOUTTIÈRE de colonne.
+// 3 espaces et non 2 : deux espaces apparaissent dans du texte normal
+// (« M. Dupont ») et suffiraient à couper une phrase en deux.
+function splitColumns(line) {
+  const m = /^(.*?\S)\s{3,}(\S.*)$/.exec(line.trim());
+  return m ? [m[1].trim(), m[2].trim()] : null;
+}
+
+// Abréviations de mois en plus des noms complets de MONTHS (celles des CV
+// LaTeX : « Jan 2012 », « Aug 2012 »).
+const MOIS_SRC =
+  '(?:' + MONTHS +
+  '|janv?|fevr?|avr|juil|sept?|dec|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov)';
+const SAISON_SRC = '(?:summer|spring|fall|autumn|winter|hiver|ete|printemps|automne)';
+
+// La colonne de droite est-elle UNIQUEMENT une date ? Ancré des deux côtés
+// (contrairement à hasDateRange, qui trouve la plage n'importe où) : une
+// colonne de prose contenant « … 2012 – 2013 … » ne doit pas être prise
+// pour la colonne des dates. Couvre aussi « Summer 2012 and 2013 »
+// (Lucena Research) que DATE_RANGE_RE ignore (« and » n'est pas un
+// séparateur de plage) et un millésime seul (« Master …    2019 »).
+const DATE_COLONNE_RE = new RegExp(
+  '^(?:' + SAISON_SRC + '\\s+)?(?:' + MOIS_SRC + '\\.?\\s*)?(?:' +
+    '(?:19|20)\\d{2}\\s*[-\\u2013\\u2014/]\\s*(?:' + MOIS_SRC + '\\.?\\s*)?' +
+      '(?:(?:19|20)\\d{2}|present|current|aujourd\'?hui)' +
+    '|(?:19|20)\\d{2}\\s+(?:and|to|&|et|au|a|jusqu\'?a)\\s+(?:19|20)\\d{2}' +
+    '|(?:19|20)\\d{2}' +
+  ')$',
+  'i'
+);
+
+function looksLikeDatesColumn(text) {
+  const t = stripAccents((text || '').trim());
+  if (!t) return false;
+  return DATE_COLONNE_RE.test(t);
+}
+
+// Titres/entreprises récupérés en colonne : on recolle les gouttières
+// résiduelles (« Data Scientist      Summer… ») pour qu'un intitulé de
+// poste reste un intitulé de poste (le score de confiance pénalise les
+// titres > 70 caractères).
+function cleanField(text) {
+  return (text || '').replace(/\s{2,}/g, ' ').trim();
+}
+
+// Langages de programmation connus — sert uniquement à désambiguïser un
+// libellé « Languages: » SEUL (voir classifyInlineLabel).
+const TECH_LANGS = new Set([
+  'c', 'c++', 'c#', 'java', 'javascript', 'typescript', 'python', 'ruby', 'php',
+  'sql', 'html', 'css', 'go', 'golang', 'rust', 'swift', 'kotlin', 'scala',
+  'perl', 'bash', 'shell', 'r', 'matlab', 'haskell', 'clojure', 'elixir',
+  'dart', 'lua', 'objective-c', 'assembly', 'vba', 'groovy', 'julia',
+]);
+
+/**
+ * Classe un libellé de liste écrit en ligne (« Étiquette : a, b, c »).
+ *
+ * Issue #88 : le CV contient « Languages and Technologies: C++, Java… » ET
+ * « Languages: English, Hindi ». Le premier libellé ne contient ni
+ * « compétence » ni « skill » → aucune section détectée (0 compétence) ; et
+ * les deux commencent par « Languages » → il faut les désambiguïser sans
+ * mélanger « C++ » avec « Hindi ».
+ *
+ * @returns {'skills'|'languages'|null}
+ */
+function classifyInlineLabel(label, rest) {
+  const l = stripAccents(String(label || '')).toLowerCase().replace(/\s+/g, ' ').trim();
+  if (!l) return null;
+  const langueMot = /\b(langues?|languages?)\b/.test(l);
+  const technoMot = /\b(technologies?|tech|stack|tools?|outils?|frameworks?|programming|informatiques?|logiciels?|langages?)\b/.test(l);
+  const competenceMot = /\b(competences?|skills?)\b/.test(l);
+  // « Languages and Technologies », « Langages et technologies »,
+  // « Tech stack », « Technical skills » → compétences.
+  if (langueMot && technoMot) return 'skills';
+  if (langueMot) {
+    // « Languages: » seul. Langues humaines par défaut ; si la liste ne
+    // contient QUE des langages de programmation, c'est une section
+    // compétences mal étiquetée.
+    const items = splitListItems(String(rest || ''));
+    const tech = items.filter(it =>
+      TECH_LANGS.has(stripAccents(it).toLowerCase().replace(/[.\s]+$/, '').trim()));
+    return items.length > 0 && tech.length * 2 >= items.length ? 'skills' : 'languages';
+  }
+  if (competenceMot || technoMot) return 'skills';
+  return null;
+}
+
+
 function parseCVText(pdfText) {
   const lines = pdfText.split('\n').filter(l => l.trim());
 
@@ -280,6 +384,28 @@ function parseCVText(pdfText) {
     const trimmed = line.trim();
     if (!trimmed) continue;
 
+    // ── FIX 24/10/2026 (issue #88) ──────────────────────────────────────────
+    // « Languages and Technologies: C++, Java, Python… » : le libellé est
+    // LONG (donc jamais reconnu comme en-tête par la règle « ≤ 5 mots / ≤ 40
+    // caractères ») et ne contient ni « compétence » ni « skill » → aucune
+    // section ouverte, 0 compétence extraite. On le traite ici, AVANT la
+    // détection d'en-tête, pour que « Langues : Français, Anglais » (court,
+    // mais dont la liste est APRÈS le « : ») ne perde pas son contenu en
+    // étant pris pour un simple en-tête.
+    // La désambiguïsation « Languages » vs « Languages and Technologies »
+    // est faite par classifyInlineLabel (voir plus haut).
+    const inlineList = trimmed.match(/^([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ0-9 '&/+.-]{1,45}?)\s*:\s*(\S.*)$/);
+    if (inlineList) {
+      const cle = classifyInlineLabel(inlineList[1], inlineList[2]);
+      if (cle) {
+        currentSection = cle;
+        lastWasArrowInterest = false;
+        currentItem = null;
+        pushTracked(cv[cle], trimmed, splitListItems(inlineList[2].trim()));
+        continue;
+      }
+    }
+
     // Check for section headers. A real header is short and standalone
     // (e.g. "Experience", "Formation") - without this guard, an ordinary
     // sentence that merely mentions a keyword (e.g. "5 ans d'experience en
@@ -391,6 +517,25 @@ function parseCVText(pdfText) {
       continue;
     }
     lastWasArrowInterest = false;
+
+    // ── FIX 24/10/2026 (issue #88) ──────────────────────────────────────────
+    // Puce de niveau 2 (« ◦ ») dans une expérience = ligne de DESCRIPTION.
+    // Ce test doit passer AVANT la récupération de dates et avant
+    // companyMatch/hyphenJobMatch : le libellé d'un projet contient souvent
+    // un tiret (« ◦ Research Assistant – Machine Learning: … ») que
+    // companyMatch prenait pour un séparateur titre/entreprise, créant une
+    // expérience fantôme { title: "Machine Learning: …", company: "◦ …" }.
+    if (currentSection === 'experience' && SUB_BULLET_RE.test(trimmed)) {
+      const contenu = cleanField(trimmed.replace(SUB_BULLET_RE, ''));
+      if (!currentItem) {
+        currentItem = { title: '', company: '', dates: '', description: [] };
+        cv.experience.push(currentItem);
+      }
+      if (!currentItem.title && !currentItem.company) currentItem.title = contenu;
+      else currentItem.description.push(contenu);
+      trackRaw(trimmed);
+      continue;
+    }
 
     // Detect contact info on early lines
     if (!currentSection && lines.indexOf(line) < 10) {
@@ -536,6 +681,53 @@ function parseCVText(pdfText) {
 
     // Fill based on current section
     if (currentSection === 'experience') {
+      // ── FIX 24/10/2026 (issue #88) ──────────────────────────────────────
+      // Ligne « Société    Ville » d'un CV en colonnes (« • Google
+      // Mountain View, CA ») : elle ouvre une NOUVELLE entrée. Sans ce
+      // découpage elle tombait dans `title` (l'entreprise passait pour un
+      // intitulé de poste) et la ligne suivante — le vrai poste — finissait
+      // en description de la mission précédente.
+      if (MAIN_BULLET_RE.test(trimmed) && !hasDateRange(trimmed)) {
+        const orgRow = splitColumns(trimmed);
+        if (orgRow) {
+          const societe = cleanField(orgRow[0].replace(MAIN_BULLET_RE, ''));
+          // Garde-fous : « • Développement de microservices Java/Spring »
+          // (puce de description d'un autre modèle de CV) n'a pas de
+          // seconde colonne courte → elle n'est pas prise pour une société.
+          if (societe.length >= 2 && societe.length <= 60 && orgRow[1].length <= 40
+              && !/[.;]$/.test(societe) && societe.split(/\s+/).length <= 8) {
+            if (!currentItem || currentItem.company || currentItem.title) {
+              currentItem = { title: '', company: '', dates: '', description: [] };
+              cv.experience.push(currentItem);
+            }
+            currentItem.company = societe;
+            trackRaw(trimmed);
+            continue;
+          }
+        }
+      }
+
+      // ── FIX 24/10/2026 (issue #88) ──────────────────────────────────────
+      // « Intitulé de poste        Oct 2016 – Present » : le poste est à
+      // gauche, la date est alignée à DROITE dans la seconde colonne
+      // (séparés par de nombreux espaces, pas par un « | »). Couvre aussi
+      // « Data Scientist      Summer 2012 and 2013 », dont la plage écrite
+      // avec « and » n'est reconnue par aucune regex de dates existante.
+      const colExp = splitColumns(trimmed);
+      if (colExp && looksLikeDatesColumn(colExp[1])) {
+        const intitule = cleanField(colExp[0]);
+        if (intitule.length >= 3 && intitule.length <= 90) {
+          if (!currentItem || currentItem.title || currentItem.dates) {
+            currentItem = { title: '', company: '', dates: '', description: [] };
+            cv.experience.push(currentItem);
+          }
+          currentItem.title = intitule;
+          currentItem.dates = cleanField(colExp[1]);
+          trackRaw(trimmed);
+          continue;
+        }
+      }
+
       // A "Company | Title" line always starts a new job entry - a CV section
       // usually lists several jobs under one "Experience" header, so without
       // this a second job would get folded into the first one's description.
@@ -666,6 +858,47 @@ function parseCVText(pdfText) {
         currentItem.description.push(trimmed);
       }
     } else if (currentSection === 'education') {
+      // ── FIX 24/10/2026 (issue #88) ──────────────────────────────────────
+      // Même structure en colonnes que l'expérience : « • Georgia Institute
+      // of Technology        Atlanta, GA » ouvre une formation (le nom de
+      // l'école est à GAUCHE, la ville à droite), et la ligne suivante porte
+      // le diplôme + la date alignée à droite. Avant ce fix, l'école
+      // finissait dans `degree` puis dans `description`, et la date en
+      // colonne atterrissait dans `institution` (degreeMatch coupait sur le
+      // tiret de la PLAGE DE DATES : « … Aug 2012 » | « Dec 2013 »).
+      if (MAIN_BULLET_RE.test(trimmed) && !hasDateRange(trimmed)) {
+        const eduOrgRow = splitColumns(trimmed);
+        if (eduOrgRow) {
+          const ecole = cleanField(eduOrgRow[0].replace(MAIN_BULLET_RE, ''));
+          if (ecole.length >= 2 && ecole.length <= 80 && eduOrgRow[1].length <= 40
+              && !/[.;]$/.test(ecole) && ecole.split(/\s+/).length <= 12) {
+            if (!currentItem || currentItem.degree || currentItem.institution || currentItem.dates) {
+              currentItem = { degree: '', institution: '', dates: '', description: [] };
+              cv.education.push(currentItem);
+            }
+            currentItem.institution = ecole;
+            trackRaw(trimmed);
+            continue;
+          }
+        }
+      }
+      // « Master of Science in Computer Science; GPA: 4.00        Aug 2012 –
+      // Dec 2013 » : diplôme à gauche, date à droite. Détecté AVANT
+      // degreeMatch, qui découpait la plage de dates sur son tiret.
+      const colEdu = splitColumns(trimmed);
+      if (colEdu && looksLikeDatesColumn(colEdu[1])) {
+        const diplome = cleanField(colEdu[0]);
+        if (diplome.length >= 3 && diplome.length <= 120) {
+          if (!currentItem || currentItem.degree || currentItem.dates) {
+            currentItem = { degree: '', institution: '', dates: '', description: [] };
+            cv.education.push(currentItem);
+          }
+          currentItem.degree = diplome;
+          currentItem.dates = cleanField(colEdu[1]);
+          trackRaw(trimmed);
+          continue;
+        }
+      }
       // Fix #52 (05/09/2026) : "2014-2016 - Master Informatique, Université
       // Lyon 1" (dates en TÊTE). Sans cette branche, aucune formation n'était
       // extraite → placeholder « Diplome et formation pertinente. » dans le CV

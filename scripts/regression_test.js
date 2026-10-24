@@ -15,6 +15,14 @@ const cas = [
   ['resume + puces', `Marie Dupont\nmarie@email.com\n\nRésumé\nIngénieure logiciel passionnée avec 8 ans d'expérience en développement backend.\n\nExpérience\nLead Dev - BanqueTech (2020-2024)\n- Architecture microservices\n- Mentoring`, { exp: 1, summary: true }],
   ['langues + certifs', `Marie Dupont\nmarie@email.com\n\nCompétences\nPython, Go\n\nLangues\nFrançais, Anglais\n\nCertifications\nAWS Solutions Architect`, { skills: 2, lang: 2, cert: 1 }],
   ['hobbies', `Marie Dupont\nmarie@email.com\n\nExpérience\nLead Dev - BanqueTech (2020-2024)\nDev.\n\nCentres d'intérêt\nEscalade, Photographie`, { exp: 1 }],
+  // Issue #88 : CV LaTeX deux colonnes (pdftotext -layout). Le poste est sur
+  // la ligne des dates, la société sur la ligne « • Société    Ville » et le
+  // projet sur une puce « ◦ » — qui contient un tiret et ne doit PAS devenir
+  // une expérience fantôme.
+  ['latex 2 colonnes', `Sourabh Bajaj\nsourabh@example.com\n\nExperience\n• Georgia Institute of Technology                    Atlanta, GA\n  Research and Teaching Assistant                    Jan 2012 – Dec 2013\n    ◦ Research Assistant – Machine Learning: Research on portfolio hedging\n      algorithms.\n\nEducation\n• Georgia Institute of Technology                    Atlanta, GA\n  Master of Science in Computer Science; GPA: 4.00   Aug 2012 – Dec 2013\n\nLanguages: English, Hindi\nLanguages and Technologies: C++, Java, Python, SQL`, { exp: 1, edu: 1, skills: 4, lang: 2 }],
+  // Les puces « • » de description sans gouttière de colonne ne sont pas des
+  // sociétés (garde-fou du découpage en colonnes ci-dessus).
+  ['puces description', `Marie Dupont\nmarie@email.com\n\nEXPERIENCE\nLead Dev - BanqueTech (2020-2024)\n• Architecture microservices\n• Mentoring`, { exp: 1 }],
 ];
 
 let ok = 0, ko = [];
