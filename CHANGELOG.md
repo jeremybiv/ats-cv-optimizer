@@ -1,3 +1,38 @@
+## 2026-10-24 (score de confiance + repli LLM à l'extraction)
+
+- [feat] **`src/lib/cvConfidence.js`** — score de 0 à 100 qui mesure la fiabilité d'une extraction de CV. Le parseur ne savait pas qu'il échouait : sur un CV LaTeX deux colonnes il renvoyait `{title: "Machine Learning: Research on machine learning for portfolio…", company: "◦ Research Assistant"}` sans aucun signal. Un CV faux avec un bon score est pire qu'un échec visible.
+- [feat] **`src/lib/cvLLMExtract.js`** — repli LLM (Gemini 3, `temperature: 0`) déclenché uniquement quand le score passe sous **60/100**. Le déterministe traite la majorité des CV sans coût ; le LLM ne sert que de filet pour les mises en page qu'aucune regex ne couvre.
+- [feat] **`scripts/test_score_cv.js`** — harnais de mesure qui compare AVANT/APRÈS sur les CV disponibles.
+
+### Mesure réelle
+
+| CV | Déterministe | Repli LLM | Gain |
+|---|---|---|---|
+| `cvPropre.pdf` (Paul Legrand, 422 car.) | **100/100** ✅ | non déclenché (0 €) | — |
+| CV LaTeX 2 colonnes (Sourabh Bajaj, 5 279 car.) | **35/100** ❌ | **95/100** ✅ en 22 s | **+60** |
+
+Sur le CV LaTeX, le LLM retrouve : 4 expériences correctes (Software Engineer — Google, Senior — Coursera, Data Scientist — Lucena Research), 2 formations (Georgia Tech, BITS) et 8 compétences — là où le déterministe produisait des titres qui étaient des descriptions.
+
+### Détection durcie
+
+Premier essai : le CV LaTeX obtenait **80/100**, donc le repli ne se déclenchait pas. Trois contrôles ajoutés :
+
+- `TITRE_MAX` abaissé de 120 à **70** caractères (un intitulé de poste réel dépasse rarement 70)
+- titre contenant `:` **suivi d'une phrase** (> 6 mots) → suspect
+- titre de plus de **10 mots** → c'est une phrase
+- `company` commençant par une **puce** (`•◦▪‣→`) → titre/entreprise inversés, **−15** par occurrence
+
+### Robustesse
+
+- `temperature: 0` → même CV = même JSON
+- `responseMimeType: application/json` → pas de texte parasite
+- `reparer()` normalise la sortie : une chaîne là où on attend un tableau est convertie
+- Fallback de modèles : `gemini-3.1-flash-lite` → `gemini-flash-lite-latest` (testé : le premier a renvoyé 503, le second a pris le relais)
+
+### Coût
+
+~0,0003 €/CV quand le repli se déclenche, soit ~20 % du volume. Les CV déjà bien parsés coûtent **0 €**.
+
 ## 2026-10-24 (UX — bouton « Optimiser » expliqué)
 
 - [fix] **#85** : le bouton « 🚀 Optimiser mon CV » restait désactivé sans aucune explication quand il manquait le CV **ou** l'offre d'emploi. L'utilisateur croyait que son CV était refusé. Un bandeau orange indique désormais précisément ce qui manque : « ⚠️ Il manque ton CV et l'offre d'emploi pour lancer l'optimisation ».
