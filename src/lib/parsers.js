@@ -226,6 +226,35 @@ function parseCVText(pdfText) {
   // freelance est "Entreprise" / "Lieu - Poste" / "Mois annee a mois annee"),
   // et on les retire de la ou elles avaient ete (mal) rangees.
   function startExperienceFromDateLine(dateLine) {
+    // ── FIX 24/10/2026 (issue #83) ──────────────────────────────────────────
+    // « Data analyst - DataCorp - 2020 - present » arrive ici parce que
+    // hasDateRange() détecte la plage AVANT tout autre traitement. Or la ligne
+    // contient aussi le titre ET l'entreprise : sans ce découpage, tout part
+    // dans `dates` et `company` reste vide.
+    //
+    // Le `.*?` non-greedy laisse le dernier séparateur collé au reste, d'où le
+    // nettoyage `[\s\-–—]+$` avant le split.
+    const inline = dateLine.match(
+      /^(.*?)\s+((?:\d{4}|present|current|aujourd'hui|présent)\s*[-\u2013\u2014]\s*(?:\d{4}|present|current|aujourd'hui|présent))\s*$/i);
+    if (inline) {
+      const reste = inline[1].trim().replace(/[\s\-\u2013\u2014|]+$/, '');
+      // Séparateurs acceptés : « - », « – », « — » et « | » (avec espaces).
+      const parts = reste.split(/\s*[:|\u2013\u2014]\s*|\s+[-]\s+/).filter(Boolean);
+      // Au moins 2 segments et une longueur plausible : sinon c'est du prose,
+      // on laisse le comportement historique.
+      if (parts.length >= 2 && reste.length <= 90) {
+        currentItem = {
+          title: parts[0].trim(),
+          company: parts.slice(1).join(' | ').trim(),
+          dates: inline[2].trim(),
+          description: [],
+        };
+        cv.experience.push(currentItem);
+        currentSection = 'experience';
+        return;
+      }
+    }
+
     const prev1 = recent.length > 0 ? recent[recent.length - 1].text : '';
     const prev2 = recent.length > 1 ? recent[recent.length - 2].text : '';
     const prevItem = currentItem;
@@ -523,10 +552,49 @@ function parseCVText(pdfText) {
           currentItem = { title: '', company: '', dates: '', description: [] };
           cv.experience.push(currentItem);
         }
-        currentItem.title = currentItem.title || dateTailMatch[1].trim();
+        // ── FIX 24/10/2026 (issue #83) ────────────────────────────────────
+        // « Data analyst - DataCorp - 2020 - present » : le reste avant les
+        // dates contient AUSSI l'entreprise. Sans ce découpage, tout partait
+        // dans `title` et `company` restait vide.
+        const avantDates = dateTailMatch[1].trim().replace(/[\s\-\u2013\u2014]+$/, '');
+        const morceaux = avantDates.split(/\s+[-\u2013\u2014]\s+/);
+        // Garde-fou : si un « | » ou « – » sépare déjà titre/entreprise, c'est
+        // companyMatch qui doit décider — sinon on écrase un découpage correct
+        // (régression constatée sur le format « Company | Title | Dates »).
+        const dejaSepare = /[|\u2013\u2014]/.test(avantDates);
+        if (!dejaSepare && morceaux.length >= 2 && avantDates.length <= 90) {
+          currentItem.title = morceaux[0].trim();
+          currentItem.company = morceaux.slice(1).join(' - ').trim();
+        } else {
+          currentItem.title = currentItem.title || avantDates;
+        }
         currentItem.dates = dateTailMatch[2].trim();
         trackRaw(trimmed);
         continue;
+      }
+      // ── FIX 24/10/2026 : « Data analyst - DataCorp - 2020 - present » ────
+      // Le tiret sert À LA FOIS de séparateur de champs et de séparateur de
+      // dates. Aucune regex existante ne couvrait ce cas : companyMatch exige
+      // | ou –, hyphenJobMatch exige des parenthèses autour de l'année. La
+      // ligne tombait donc entièrement dans `title`, avec `company` vide.
+      //
+      // Méthode : isoler D'ABORD la plage de dates en fin de ligne, puis
+      // découper ce qui reste sur le premier « - » entouré d'espaces.
+      const dateTail = trimmed.match(
+        /^(.*?)\s+((?:\d{4}|present|current|aujourd'hui)\s*[-\u2013\u2014]\s*(?:\d{4}|present|current|aujourd'hui))\s*$/i);
+      let hyphenSplit = null;
+      if (dateTail) {
+        // `.*?` non-greedy laisse le dernier séparateur dans le reste
+        // (« Data analyst - DataCorp - ») : on le retire avant de découper.
+        const reste = dateTail[1].trim().replace(/[\s\-\u2013\u2014]+$/, '');
+        const parts = reste.split(/\s+[-\u2013\u2014]\s+/);
+        if (parts.length >= 2) {
+          hyphenSplit = {
+            title: parts[0].trim(),
+            company: parts.slice(1).join(' - ').trim(),
+            dates: dateTail[2].trim(),
+          };
+        }
       }
       const companyMatch = trimmed.match(/^(.+?)\s*[|\u2013\u2014]\s*(.+)$/);
       // French CVs often use "Title - Company (year)" with a plain hyphen -
@@ -542,6 +610,17 @@ function parseCVText(pdfText) {
       // captured with the dates.
       const companyMatchIsDateRange = companyMatch
         && (hasDateRange(companyMatch[2]) || /\b(19|20)\d{2}\b/.test(companyMatch[2]));
+      // Priorité au découpage propre quand il a réussi : il donne title ET company.
+      if (hyphenSplit && (!currentItem || currentItem.company || currentItem.title)) {
+        currentItem = {
+          title: hyphenSplit.title,
+          company: hyphenSplit.company,
+          dates: hyphenSplit.dates,
+          description: [],
+        };
+        trackRaw(trimmed);
+        continue;
+      }
       const newJob = (companyMatch || hyphenJobMatch) && (!currentItem || currentItem.company);
       if (newJob) {
         const prevItem = currentItem;
@@ -606,6 +685,30 @@ function parseCVText(pdfText) {
         trackRaw(trimmed);
         continue;
       }
+      // ── FIX 24/10/2026 (issue #84) ──────────────────────────────────────
+      // « Master Data Science - Universite Lyon 2 - 2018 - 2020 » : les dates
+      // sont en FIN de ligne (dashEduDate ne couvre que les dates en tête) et
+      // le séparateur est un tiret simple (degreeMatch exige | ou –).
+      // Résultat avant correctif : tout partait dans `dates`, degree et
+      // institution restaient vides.
+      const eduDateTail = trimmed.match(
+        /^(.*?)\s+((?:19|20)\d{2}\s*[-\u2013\u2014]\s*(?:(?:19|20)\d{2}|aujourd'hui|present|présent|en cours))\s*$/i);
+      if (eduDateTail) {
+        const reste = eduDateTail[1].trim().replace(/[\s\-\u2013\u2014]+$/, '');
+        const parts = reste.split(/\s+[-\u2013\u2014]\s+/);
+        if (parts.length >= 2 && reste.length <= 100) {
+          if (!currentItem || currentItem.degree || currentItem.institution) {
+            currentItem = { degree: '', institution: '', dates: '', description: [] };
+            cv.education.push(currentItem);
+          }
+          currentItem.degree = parts[0].trim();
+          currentItem.institution = parts.slice(1).join(' - ').trim();
+          currentItem.dates = eduDateTail[2].trim();
+          trackRaw(trimmed);
+          continue;
+        }
+      }
+
       // ── FIX 23/10/2026 ────────────────────────────────────────────────
       // Une ligne qui n'est QU'UNE plage de dates (« 2017 – 2019 ») complète
       // l'entrée courante ; elle ne doit PAS créer un nouvel item.
