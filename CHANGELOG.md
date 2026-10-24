@@ -1,3 +1,9 @@
+## 2026-10-24 (UX — bouton « Optimiser » expliqué)
+
+- [fix] **#85** : le bouton « 🚀 Optimiser mon CV » restait désactivé sans aucune explication quand il manquait le CV **ou** l'offre d'emploi. L'utilisateur croyait que son CV était refusé. Un bandeau orange indique désormais précisément ce qui manque : « ⚠️ Il manque ton CV et l'offre d'emploi pour lancer l'optimisation ».
+- Cause réelle : la condition `disabled` exige **le CV ET l'offre** (`(cvFile || linkedinData || …) && (jobUrl || jobText)`). Ce n'était donc pas un bug de parsing — mais l'absence de message en faisait un bug UX bloquant.
+- Le bandeau n'apparaît que si quelque chose manque, et s'efface dès que les deux sont fournis.
+
 ## 2026-10-24 (parseur — format « Titre - Entreprise - Dates »)
 
 - [fix] **Expérience** (#83) : « Data analyst - DataCorp - 2020 - present » mettait tout le texte dans `title` et laissait `company` vide. Le tiret sert à la fois de séparateur de champs et de séparateur de dates. On isole désormais la plage de dates en fin de ligne, puis on découpe le reste.

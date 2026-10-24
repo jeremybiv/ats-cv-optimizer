@@ -905,7 +905,28 @@ ${result.html}
               </Box>
             </Box>
           </Box>
-          <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: '#f8f9fa', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ p: { xs: 2, md: 2.5 }, bgcolor: '#f8f9fa', borderTop: '1px solid #e0e0e0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+            {/* ── FIX 24/10/2026 (issue #85) ────────────────────────────────
+                Le bouton « Optimiser » est désactivé tant qu'il manque le CV OU
+                l'offre d'emploi. Jusqu'ici l'utilisateur voyait un bouton grisé
+                SANS AUCUNE EXPLICATION : il croyait que son CV était refusé.
+                On affiche explicitement ce qui manque, à côté du bouton. */}
+            {(() => {
+              const aCv = !!(cvFile || linkedinData || (showManualInput && linkedinManualText.trim().length > 20));
+              const aOffre = !!(jobUrl || jobText);
+              if (aCv && aOffre) return null;
+              const manque = [];
+              if (!aCv) manque.push('ton CV');
+              if (!aOffre) manque.push("l'offre d'emploi");
+              return (
+                <Typography sx={{ fontSize: 12, color: '#b26a00', bgcolor: '#fff8e1',
+                                  px: 1.5, py: 0.5, borderRadius: '6px',
+                                  borderLeft: '3px solid #f9ab00', order: { xs: 3, md: 0 },
+                                  width: { xs: '100%', md: 'auto' } }}>
+                  ⚠️ Il manque {manque.join(' et ')} pour lancer l'optimisation
+                </Typography>
+              );
+            })()}
             <Button variant="text" size="small" onClick={handleReset} startIcon={<RestartAltIcon />} sx={{ color: '#5f6368', textTransform: 'none' }}>
               Réinitialiser
             </Button>
