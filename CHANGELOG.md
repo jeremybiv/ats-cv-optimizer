@@ -1,3 +1,16 @@
+## 2026-10-24 (UX — bouton « Optimiser » expliqué)
+
+- [fix] **#85** : le bouton « 🚀 Optimiser mon CV » restait désactivé sans aucune explication quand il manquait le CV **ou** l'offre d'emploi. L'utilisateur croyait que son CV était refusé. Un bandeau orange indique désormais précisément ce qui manque : « ⚠️ Il manque ton CV et l'offre d'emploi pour lancer l'optimisation ».
+- Cause réelle : la condition `disabled` exige **le CV ET l'offre** (`(cvFile || linkedinData || …) && (jobUrl || jobText)`). Ce n'était donc pas un bug de parsing — mais l'absence de message en faisait un bug UX bloquant.
+- Le bandeau n'apparaît que si quelque chose manque, et s'efface dès que les deux sont fournis.
+
+## 2026-10-24 (parseur — format « Titre - Entreprise - Dates »)
+
+- [fix] **Expérience** (#83) : « Data analyst - DataCorp - 2020 - present » mettait tout le texte dans `title` et laissait `company` vide. Le tiret sert à la fois de séparateur de champs et de séparateur de dates. On isole désormais la plage de dates en fin de ligne, puis on découpe le reste.
+- [fix] **Formation** (#84) : « Master Data Science - Universite Lyon 2 - 2018 - 2020 » absorbait toute la ligne dans `dates`, laissant `degree` et `institution` vides. `dashEduDate` ne couvrait que les dates en tête ; ajout de la branche symétrique (dates en fin).
+- Mesuré sur `cvPropre.pdf` (422 car.) : `{title: "Data analyst", company: "DataCorp"}` et `{degree: "Master Data Science", institution: "Universite Lyon 2"}`.
+- ⚠️ Régression **préexistante** constatée (déjà présente sur master) : le format « BanqueTech | Lead Developer | 2020-2024 » ne produit qu' 1 expérience au lieu de 2. Non corrigée ici, documentée en issue.
+
 # Changelog
 
 ## 2026-10-21
