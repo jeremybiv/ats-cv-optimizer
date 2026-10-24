@@ -1,3 +1,27 @@
+## 2026-10-24 (parser — CV LaTeX deux colonnes, issue #88)
+
+- [fix] **#88 — expériences** : sur un CV LaTeX (`pdftotext -layout`), les puces ont **deux niveaux** : `•` ouvre une ligne « Société    Ville », `◦` est une puce de description. La ligne `◦ Research Assistant – Machine Learning: …` contenait un tiret qui faisait matcher `companyMatch` → expérience fantôme `{ title: "Machine Learning: …", company: "◦ Research Assistant" }`, titre et entreprise inversés. Le parseur distingue désormais les deux niveaux (une puce `◦` est toujours une description) et **découpe les lignes en colonnes sur la gouttière d'espaces** (≥ 3) : le poste est à gauche, les dates alignées à droite.
+- [fix] **#88 — compétences** : les libellés de liste écrits en ligne sont détectés avant la règle d'en-tête (≤ 5 mots / ≤ 40 caractères), qui les ignorait : `Languages and Technologies: C++, Java…`, `Tech stack:`, `Outils :`, `Langages :`. Ils alimentent `skills`.
+- [fix] **#88 — langues** : `Languages:` **seul** → `languages` (langues humaines) ; `Languages and Technologies` / `Langages et technologies` → `skills`. Un `Languages:` dont la liste ne contient que des langages de programmation (`C++`, `Java`, `Python`…) bascule aussi sur `skills` → plus de `C++` mélangé à `Hindi`.
+- [fix] **#88 — formation** : la date alignée à droite (`Master of Science in Computer Science; GPA: 4.00        Aug 2012 – Dec 2013`) restait collée au diplôme, `degreeMatch` coupant sur le tiret de la **plage de dates** (`degree` finissait sur `Aug 2012`, `institution = "Dec 2013"`). La colonne de droite est maintenant reconnue comme date et part dans `dates` ; un millésime seul et « Summer 2012 and 2013 » (saison + `and`, que `DATE_RANGE_RE` ignore) sont couverts.
+
+### Mesure réelle (déterministe)
+
+| CV | Avant | Après | Repli LLM |
+|---|---|---|---|
+| `cvPropre.pdf` (Paul Legrand) | 100/100 ✅ | **100/100** ✅ | non déclenché |
+| CV LaTeX 2 colonnes (Sourabh Bajaj) | **35/100** ❌ | **80/100** ✅ | **avant** : déclenché (95/100, 3,3 s) → **après** : **non déclenché, 0 €** |
+
+Extraction obtenue sur le CV LaTeX : 4 expériences justes (`Software Engineer` — Google, `Senior Software Engineer` — Coursera, `Data Scientist` — Lucena Research, `Research and Teaching Assistant` — Georgia Institute of Technology) et 2 formations (`degree` / `institution` / `dates` séparés).
+
+> Restent −20 sur ce fichier (`aucune compétence`, `aucune langue`) : cette version du PDF ne contient **aucune** section compétences/langues (uniquement `Projects`). La détection des libellés en ligne est couverte par le cas `latex 2 colonnes` de `scripts/regression_test.js`.
+
+### Non-régression
+
+- `node scripts/regression_test.js` : **13/14** (échec `pipe |` préexistant, issue #87)
+- `node scripts/fuzz_cv.js` : **100/100** avant **et** après
+- `node scripts/test_score_cv.js` : `cvPropre.pdf` toujours **100/100**
+
 ## 2026-10-24 (score de confiance + repli LLM à l'extraction)
 
 - [feat] **`src/lib/cvConfidence.js`** — score de 0 à 100 qui mesure la fiabilité d'une extraction de CV. Le parseur ne savait pas qu'il échouait : sur un CV LaTeX deux colonnes il renvoyait `{title: "Machine Learning: Research on machine learning for portfolio…", company: "◦ Research Assistant"}` sans aucun signal. Un CV faux avec un bon score est pire qu'un échec visible.
